@@ -117,6 +117,10 @@ export class DuckDBDriver extends BaseDriver implements DriverInterface {
         key: 'schema',
         value: getEnv('duckdbSchema', this.config),
       },
+      {
+        key: 'access_mode',
+        value: 'READ_ONLY'
+      }
     ];
     
     for (const { key, value } of configuration) {
@@ -236,7 +240,7 @@ export class DuckDBDriver extends BaseDriver implements DriverInterface {
   }
 
   public readOnly() {
-    return false;
+    return true;
   }
 
   public async release(): Promise<void> {
