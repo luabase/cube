@@ -79,8 +79,8 @@ export class DuckDBServerDriver extends BaseDriver implements DriverInterface {
     }
 
     this.database = config.database || getEnv('dbName', { dataSource });
-    this.environment = config.environment || getEnv('duckdbEnvironment', { dataSource });
-    this.path = config.path || getEnv('duckdbServerDatabasePath', { dataSource });
+    this.environment = config.environment || process.env['CUBEJS_DB_DUCKDB_SERVER_ENVIRONMENT'];
+    this.path = config.path || process.env['CUBEJS_DB_DUCKDB_SERVER_DATABASE_PATH'];
     this.schema = config.schema || getEnv('duckdbSchema', { dataSource });
 
     this.config = {
