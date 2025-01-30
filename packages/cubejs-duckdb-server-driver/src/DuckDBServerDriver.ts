@@ -27,6 +27,9 @@ export class DuckDBServerDriver extends BaseDriver implements DriverInterface {
   protected readonly client: AxiosInstance;
 
   private database: string;
+
+  private environment: string;
+
   private schema: string;
 
   public constructor(
@@ -35,6 +38,11 @@ export class DuckDBServerDriver extends BaseDriver implements DriverInterface {
        * Data source name.
        */
       dataSource?: string,
+
+      /**
+       * Data source environment.
+       */
+      environment?: string,
 
       /**
        * Max pool size value for the [cube]<-->[db] pool.
@@ -72,6 +80,7 @@ export class DuckDBServerDriver extends BaseDriver implements DriverInterface {
     }
 
     this.database = config.database || getEnv('dbName', { dataSource });
+    this.environment = config.environment || getEnv('duckdbEnvironment', { dataSource });
     this.schema = config.schema || getEnv('duckdbSchema', { dataSource });
 
     this.config = {
@@ -119,6 +128,7 @@ export class DuckDBServerDriver extends BaseDriver implements DriverInterface {
       sql,
       args,
       database: this.database,
+      dynamic: this.environment,
       type: 'arrow',
       persist
     };
