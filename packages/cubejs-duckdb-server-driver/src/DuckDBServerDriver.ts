@@ -28,7 +28,9 @@ export class DuckDBServerDriver extends BaseDriver implements DriverInterface {
 
   private database: string;
 
-  private environment: string;
+  private environment?: string;
+
+  private path?: string;
 
   private schema: string;
 
@@ -48,6 +50,11 @@ export class DuckDBServerDriver extends BaseDriver implements DriverInterface {
        * Max pool size value for the [cube]<-->[db] pool.
        */
       maxPoolSize?: number,
+
+      /**
+       * Database path.
+       */
+      path?: string,
 
       /**
        * Time to wait for a response from a connection after validation
@@ -81,6 +88,7 @@ export class DuckDBServerDriver extends BaseDriver implements DriverInterface {
 
     this.database = config.database || getEnv('dbName', { dataSource });
     this.environment = config.environment || getEnv('duckdbEnvironment', { dataSource });
+    this.path = config.path || getEnv('duckdbServerDatabasePath', { dataSource });
     this.schema = config.schema || getEnv('duckdbSchema', { dataSource });
 
     this.config = {
@@ -127,7 +135,7 @@ export class DuckDBServerDriver extends BaseDriver implements DriverInterface {
     const data = {
       sql,
       args,
-      database: this.database,
+      database: this.path ? [this.database, this.path].join('/') : this.database,
       dynamic: this.environment,
       type: 'arrow',
       persist
