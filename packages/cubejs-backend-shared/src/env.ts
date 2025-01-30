@@ -1523,13 +1523,13 @@ const variables: Record<string, (...args: any) => any> = {
     ]
   ),
 
-  duckdbEnvironment: ({
+  duckdbServerEnvironment: ({
     dataSource
   }: {
     dataSource: string,
   }) => (
     process.env[
-    keyByDataSource('CUBEJS_DB_DUCKDB_ENVIRONMENT', dataSource)
+    keyByDataSource('CUBEJS_DB_DUCKDB_SERVER_ENVIRONMENT', dataSource)
     ]
   ),
 

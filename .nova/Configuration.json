@@ -1,4 +1,6 @@
 {
+  "apexskier.typescript.config.formatDocumentOnSave" : "false",
+  "apexskier.typescript.config.organizeImportsOnSave" : "false",
   "apexskier.typescript.config.tslibPath" : "\/Users\/alex\/Library\/pnpm\/global\/5\/node_modules\/typescript\/lib",
   "eslint.opts.disable" : false,
   "tommasonegri.vue.config.extension.languageServer" : "None"

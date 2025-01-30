@@ -19,6 +19,8 @@ import { transformValue } from './transform';
 export type DuckDBServerDriverConfiguration = {
   initSql?: string,
   database?: string,
+  environment?: string,
+  path?: string
   schema?: string,
   url?: string,
 };
@@ -42,19 +44,9 @@ export class DuckDBServerDriver extends BaseDriver implements DriverInterface {
       dataSource?: string,
 
       /**
-       * Data source environment.
-       */
-      environment?: string,
-
-      /**
        * Max pool size value for the [cube]<-->[db] pool.
        */
       maxPoolSize?: number,
-
-      /**
-       * Database path.
-       */
-      path?: string,
 
       /**
        * Time to wait for a response from a connection after validation

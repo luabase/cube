@@ -2,7 +2,7 @@
   "name": "@cubejs-backend/duckdb-server-driver",
   "description": "Cube DuckDB Server driver",
   "author": "Alexander Kolov",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "repository": {
     "type": "git",
     "url": "https://github.com/luabase/cube.git",
