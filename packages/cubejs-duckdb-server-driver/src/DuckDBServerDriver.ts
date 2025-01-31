@@ -25,6 +25,13 @@ export type DuckDBServerDriverConfiguration = {
   url?: string,
 };
 
+const DuckDBServerToGenericType: Record<string, GenericDataBaseType> = {
+  // DATE_TRUNC returns DATE, but Cube Store still doesn't support DATE type
+  // DuckDB's driver transform date/timestamp to Date object, but HydrationStream converts any Date object to ISO timestamp
+  // That's why It's safe to use timestamp here
+  date: 'timestamp',
+};
+
 export class DuckDBServerDriver extends BaseDriver implements DriverInterface {
   protected readonly client: AxiosInstance;
 
@@ -121,6 +128,14 @@ export class DuckDBServerDriver extends BaseDriver implements DriverInterface {
 
   public static dialectClass() {
     return DuckDBServerQuery;
+  }
+
+  public toGenericType(columnType: string): GenericDataBaseType {
+    if (columnType.toLowerCase() in DuckDBServerToGenericType) {
+      return DuckDBServerToGenericType[columnType.toLowerCase()];
+    }
+
+    return super.toGenericType(columnType.toLowerCase());
   }
 
   protected async fetchAsync(sql: string, args: unknown[], persist: boolean = false): Promise<Table> {
