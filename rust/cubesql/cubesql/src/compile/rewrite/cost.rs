@@ -58,6 +58,11 @@ impl BestCubePlan {
             _ => 0,
         };
 
+        let joins = match enode {
+            LogicalPlanLanguage::Join(_) => 1,
+            _ => 0,
+        };
+
         let wrapper_nodes = match enode {
             LogicalPlanLanguage::CubeScanWrapper(_) => 1,
             _ => 0,
@@ -75,6 +80,11 @@ impl BestCubePlan {
 
         let member_errors = match enode {
             LogicalPlanLanguage::MemberError(_) => 1,
+            _ => 0,
+        };
+
+        let zero_members_wrapper = match enode {
+            LogicalPlanLanguage::WrappedSelect(_) => 1,
             _ => 0,
         };
 
@@ -112,6 +122,9 @@ impl BestCubePlan {
             LogicalPlanLanguage::ProjectionSplitPushDownReplacer(_) => 1,
             LogicalPlanLanguage::ProjectionSplitPullUpReplacer(_) => 1,
             LogicalPlanLanguage::QueryParam(_) => 1,
+            LogicalPlanLanguage::JoinCheckStage(_) => 1,
+            LogicalPlanLanguage::JoinCheckPushDown(_) => 1,
+            LogicalPlanLanguage::JoinCheckPullUp(_) => 1,
             // Not really replacers but those should be deemed as mandatory rewrites and as soon as
             // there's always rewrite rule it's fine to have replacer cost.
             // Needs to be added as alias rewrite always more expensive than original function.
@@ -196,6 +209,7 @@ impl BestCubePlan {
             non_pushed_down_window,
             non_pushed_down_grouping_sets,
             non_pushed_down_limit_sort,
+            zero_members_wrapper,
             cube_members,
             errors: this_errors,
             time_dimensions_used_as_dimensions,
@@ -203,6 +217,7 @@ impl BestCubePlan {
             structure_points,
             ungrouped_aggregates: 0,
             wrapper_nodes,
+            joins,
             wrapped_select_ungrouped_scan,
             empty_wrappers: 0,
             ast_size_outside_wrapper: 0,
@@ -222,6 +237,7 @@ impl BestCubePlan {
 /// - `empty_wrappers` > `non_detected_cube_scans` - we don't want empty wrapper to hide non detected cube scan errors
 /// - `non_detected_cube_scans` > other nodes - minimize cube scans without members
 /// - `filters` > `filter_members` - optimize for push down of filters
+/// - `zero_members_wrapper` > `filter_members` - prefer CubeScan(filters) to WrappedSelect(CubeScan(*), filters)
 /// - `filter_members` > `cube_members` - optimize for `inDateRange` filter push down to time dimension
 /// - `member_errors` > `cube_members` - extra cube members may be required (e.g. CASE)
 /// - `member_errors` > `wrapper_nodes` - use SQL push down where possible if cube scan can't be detected
@@ -241,11 +257,17 @@ pub struct CubePlanCost {
     non_pushed_down_window: i64,
     non_pushed_down_grouping_sets: i64,
     non_pushed_down_limit_sort: i64,
+    joins: usize,
     wrapper_nodes: i64,
-    wrapped_select_ungrouped_scan: usize,
     ast_size_outside_wrapper: usize,
+    wrapped_select_ungrouped_scan: usize,
     filters: i64,
     structure_points: i64,
+    // This is separate from both non_detected_cube_scans and cube_members
+    // Because it's ok to use all members inside wrapper (so non_detected_cube_scans would be zero)
+    // And we want to select representation with less members
+    // But only when members are present!
+    zero_members_wrapper: i64,
     filter_members: i64,
     cube_members: i64,
     errors: i64,
@@ -350,9 +372,15 @@ impl CubePlanCost {
             non_pushed_down_limit_sort: self.non_pushed_down_limit_sort
                 + other.non_pushed_down_limit_sort,
             member_errors: self.member_errors + other.member_errors,
+            zero_members_wrapper: (if other.cube_members == 0 {
+                self.zero_members_wrapper
+            } else {
+                0
+            }) + other.zero_members_wrapper,
             cube_members: self.cube_members + other.cube_members,
             errors: self.errors + other.errors,
             structure_points: self.structure_points + other.structure_points,
+            joins: self.joins + other.joins,
             empty_wrappers: self.empty_wrappers + other.empty_wrappers,
             ast_size_outside_wrapper: self.ast_size_outside_wrapper
                 + other.ast_size_outside_wrapper,
@@ -403,9 +431,12 @@ impl CubePlanCost {
                 SortState::Current if top_down => self.non_pushed_down_limit_sort,
                 _ => 0,
             },
+            // Don't track state here: we want representation that have fewer wrappers with zero members _in total_
+            zero_members_wrapper: self.zero_members_wrapper,
             cube_members: self.cube_members,
             errors: self.errors,
             structure_points: self.structure_points,
+            joins: self.joins,
             ast_size_outside_wrapper: match state {
                 CubePlanState::Wrapped => 0,
                 CubePlanState::Unwrapped(size) => *size,
@@ -468,6 +499,7 @@ impl CostFunction<LogicalPlanLanguage> for BestCubePlan {
             LogicalPlanLanguage::Union(_) => 1,
             LogicalPlanLanguage::Window(_) => 1,
             LogicalPlanLanguage::Subquery(_) => 1,
+            LogicalPlanLanguage::Distinct(_) => 1,
             _ => 0,
         };
 

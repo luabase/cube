@@ -30,7 +30,11 @@ pub mod test_bi_workarounds;
 #[cfg(test)]
 pub mod test_cube_join;
 #[cfg(test)]
+pub mod test_cube_join_grouped;
+#[cfg(test)]
 pub mod test_df_execution;
+#[cfg(test)]
+pub mod test_filters;
 #[cfg(test)]
 pub mod test_introspection;
 #[cfg(test)]
@@ -40,6 +44,9 @@ pub mod test_user_change;
 #[cfg(test)]
 pub mod test_wrapper;
 pub mod utils;
+use crate::compile::{
+    arrow::record_batch::RecordBatch, engine::df::scan::convert_transport_response,
+};
 pub use utils::*;
 
 pub fn get_test_meta() -> Vec<CubeMeta> {
@@ -152,6 +159,7 @@ pub fn get_test_meta() -> Vec<CubeMeta> {
                 name: "Logs".to_string(),
                 relationship: "belongsTo".to_string(),
             }]),
+            folders: None,
             meta: None,
         },
         CubeMeta {
@@ -199,6 +207,7 @@ pub fn get_test_meta() -> Vec<CubeMeta> {
                 name: "NumberCube".to_string(),
                 relationship: "belongsTo".to_string(),
             }]),
+            folders: None,
             meta: None,
         },
         CubeMeta {
@@ -217,6 +226,7 @@ pub fn get_test_meta() -> Vec<CubeMeta> {
             }],
             segments: vec![],
             joins: None,
+            folders: None,
             meta: None,
         },
         CubeMeta {
@@ -288,6 +298,7 @@ pub fn get_test_meta() -> Vec<CubeMeta> {
                 .collect(),
             segments: Vec::new(),
             joins: Some(Vec::new()),
+            folders: None,
             meta: None,
         },
         CubeMeta {
@@ -396,6 +407,7 @@ pub fn get_test_meta() -> Vec<CubeMeta> {
                 .collect(),
             segments: Vec::new(),
             joins: Some(Vec::new()),
+            folders: None,
             meta: None,
         },
     ]
@@ -418,6 +430,7 @@ pub fn get_string_cube_meta() -> Vec<CubeMeta> {
         }],
         segments: vec![],
         joins: None,
+        folders: None,
         meta: None,
     }]
 }
@@ -457,6 +470,7 @@ pub fn get_sixteen_char_member_cube() -> Vec<CubeMeta> {
         ],
         segments: vec![],
         joins: None,
+        folders: None,
         meta: None,
     }]
 }
@@ -496,6 +510,7 @@ pub fn get_test_tenant_ctx_customized(custom_templates: Vec<(String, String)>) -
             ("Logs".to_string(), "default".to_string()),
             ("NumberCube".to_string(), "default".to_string()),
             ("WideCube".to_string(), "default".to_string()),
+            ("MultiTypeCube".to_string(), "default".to_string()),
         ]
         .into_iter()
         .collect(),
@@ -563,7 +578,7 @@ OFFSET {{ offset }}{% endif %}"#.to_string(),
                         "{{expr}} {{quoted_alias}}".to_string(),
                     ),
                     ("expressions/binary".to_string(), "({{ left }} {{ op }} {{ right }})".to_string()),
-                    ("expressions/is_null".to_string(), "{{ expr }} IS {% if negate %}NOT {% endif %}NULL".to_string()),
+                    ("expressions/is_null".to_string(), "({{ expr }} IS {% if negate %}NOT {% endif %}NULL)".to_string()),
                     ("expressions/case".to_string(), "CASE{% if expr %} {{ expr }}{% endif %}{% for when, then in when_then %} WHEN {{ when }} THEN {{ then }}{% endfor %}{% if else_expr %} ELSE {{ else_expr }}{% endif %} END".to_string()),
                     ("expressions/sort".to_string(), "{{ expr }} {% if asc %}ASC{% else %}DESC{% endif %}{% if nulls_first %} NULLS FIRST {% endif %}".to_string()),
                     ("expressions/cast".to_string(), "CAST({{ expr }} AS {{ data_type }})".to_string()),
@@ -583,6 +598,8 @@ OFFSET {{ offset }}{% endif %}"#.to_string(),
                     ("expressions/like".to_string(), "{{ expr }} {% if negated %}NOT {% endif %}LIKE {{ pattern }}".to_string()),
                     ("expressions/ilike".to_string(), "{{ expr }} {% if negated %}NOT {% endif %}ILIKE {{ pattern }}".to_string()),
                     ("expressions/like_escape".to_string(), "{{ like_expr }} ESCAPE {{ escape_char }}".to_string()),
+                    ("join_types/inner".to_string(), "INNER".to_string()),
+                    ("join_types/left".to_string(), "LEFT".to_string()),
                     ("quotes/identifiers".to_string(), "\"".to_string()),
                     ("quotes/escape".to_string(), "\"\"".to_string()),
                     ("params/param".to_string(), "${{ param_index + 1 }}".to_string()),
@@ -790,7 +807,9 @@ impl TransportService for TestConnectionTransport {
         sql_query: Option<SqlQuery>,
         ctx: AuthContextRef,
         meta: LoadRequestMeta,
-    ) -> Result<TransportLoadResponse, CubeError> {
+        schema: SchemaRef,
+        member_fields: Vec<MemberField>,
+    ) -> Result<Vec<RecordBatch>, CubeError> {
         {
             let mut calls = self.load_calls.lock().await;
             calls.push(TestTransportLoadCall {
@@ -808,12 +827,19 @@ impl TransportService for TestConnectionTransport {
         }
 
         let mocks = self.load_mocks.lock().await;
-        let Some((_req, res)) = mocks.iter().find(|(req, _res)| req == &query) else {
+        let Some(res) = mocks
+            .iter()
+            .find(|(req, _res)| req == &query)
+            .map(|(_req, res)| {
+                convert_transport_response(res.clone(), schema.clone(), member_fields)
+            })
+        else {
             return Err(CubeError::internal(format!(
                 "Unexpected query in test transport: {query:?}"
             )));
         };
-        Ok(res.clone())
+
+        res
     }
 
     async fn load_stream(
