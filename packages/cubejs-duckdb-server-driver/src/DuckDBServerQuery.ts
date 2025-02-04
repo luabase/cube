@@ -1,4 +1,4 @@
-import { BaseFilter, BaseQuery } from '@cubejs-backend/schema-compiler';
+import { BaseFilter, BaseQuery, BaseTimeDimension } from '@cubejs-backend/schema-compiler';
 
 const GRANULARITY_TO_INTERVAL: Record<string, (date: string) => string> = {
   day: date => `DATE_TRUNC('day', ${date})`,
@@ -29,19 +29,20 @@ export class DuckDBServerQuery extends BaseQuery {
 
   public runningTotalDateJoinCondition() {
     return this.timeDimensions.map(
-      d => [
+      (d: BaseTimeDimension) => [
         d,
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        (dateFrom, dateTo, dateField, dimensionDateFrom, dimensionDateTo) => `${this.timeStampCast(dateField)} >= ${this.timeStampCast(dimensionDateFrom)} AND ${this.timeStampCast(dateField)} <= ${dateTo}`
+        (dateFrom: string, dateTo: string, dateField: string, dimensionDateFrom: string, dimensionDateTo: string) => `${this.timeStampCast(dateField)} >= ${this.timeStampCast(dimensionDateFrom)} AND ${this.timeStampCast(dateField)} <= ${dateTo}`
       ]
     );
   }
 
   public rollingWindowToDateJoinCondition(granularity: string) {
     return this.timeDimensions.map(
-      d => [
+      (d: BaseTimeDimension) => [
         d,
-        (dateFrom, dateTo, dateField, dimensionDateFrom, dimensionDateTo, isFromStartToEnd) => `${this.timeStampCast(dateField)} >= ${this.timeGroupedColumn(granularity, dateFrom)} AND ${this.timeStampCast(dateField)} <= ${dateTo}`
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        (dateFrom: string, dateTo: string, dateField: string, dimensionDateFrom: string, dimensionDateTo: string, isFromStartToEnd: string) => `${this.timeStampCast(dateField)} >= ${this.timeGroupedColumn(granularity, dateFrom)} AND ${this.timeStampCast(dateField)} <= ${dateTo}`
       ]
     );
   }
