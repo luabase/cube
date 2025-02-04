@@ -41,7 +41,6 @@
     "@types/jest": "^27",
     "@types/node": "^18",
     "jest": "^27",
-    "ts-node": "^10.9.2",
     "typescript": "~5.2.2"
   },
   "publishConfig": {
