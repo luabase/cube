@@ -27,6 +27,25 @@ export class DuckDBServerQuery extends BaseQuery {
     return GRANULARITY_TO_INTERVAL[granularity](dimension);
   }
 
+  public runningTotalDateJoinCondition() {
+    return this.timeDimensions.map(
+      d => [
+        d,
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        (dateFrom, dateTo, dateField, dimensionDateFrom, dimensionDateTo) => `${this.timeStampCast(dateField)} >= ${this.timeStampCast(dimensionDateFrom)} AND ${this.timeStampCast(dateField)} <= ${dateTo}`
+      ]
+    );
+  }
+
+  public rollingWindowToDateJoinCondition(granularity: string) {
+    return this.timeDimensions.map(
+      d => [
+        d,
+        (dateFrom, dateTo, dateField, dimensionDateFrom, dimensionDateTo, isFromStartToEnd) => `${this.timeStampCast(dateField)} >= ${this.timeGroupedColumn(granularity, dateFrom)} AND ${this.timeStampCast(dateField)} <= ${dateTo}`
+      ]
+    );
+  }
+
   /**
    * Returns sql for source expression floored to timestamps aligned with
    * intervals relative to origin timestamp point.
