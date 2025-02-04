@@ -47,6 +47,29 @@ export class DuckDBServerQuery extends BaseQuery {
     );
   }
 
+  public rollingWindowDateJoinCondition(trailingInterval: string, leadingInterval: string, offset: string) {
+    offset = offset || 'end';
+    return this.timeDimensions.map(
+      (d: BaseTimeDimension) => [d, (dateFrom: string, dateTo: string, dateField: string, dimensionDateFrom: string, dimensionDateTo: string, isFromStartToEnd: string) => {
+        // dateFrom based window
+        const conditions = [];
+        if (trailingInterval !== 'unbounded') {
+          const startDate = isFromStartToEnd || offset === 'start' ? dateFrom : dateTo;
+          const trailingStart = trailingInterval ? this.subtractInterval(startDate, trailingInterval) : startDate;
+          const sign = offset === 'start' ? '>=' : '>';
+          conditions.push(`${dateField}::timestamptz ${sign} ${trailingStart}`);
+        }
+        if (leadingInterval !== 'unbounded') {
+          const endDate = isFromStartToEnd || offset === 'end' ? dateTo : dateFrom;
+          const leadingEnd = leadingInterval ? this.addInterval(endDate, leadingInterval) : endDate;
+          const sign = offset === 'end' ? '<=' : '<';
+          conditions.push(`${dateField}::timestamptz ${sign} ${leadingEnd}`);
+        }
+        return conditions.length ? conditions.join(' AND ') : '1 = 1';
+      }]
+    );
+  }
+
   /**
    * Returns sql for source expression floored to timestamps aligned with
    * intervals relative to origin timestamp point.
@@ -74,6 +97,7 @@ export class DuckDBServerQuery extends BaseQuery {
     templates.functions.LEAST = 'LEAST({{ args_concat }})';
     templates.functions.GREATEST = 'GREATEST({{ args_concat }})';
     templates.filters.time_range_filter = '{{ column }}::timestamptz >= {{ from_timestamp }} AND {{ column }}::timestamptz <= {{ to_timestamp }}';
+    console.log('+++ SQL TEMPLATES', templates);
     return templates;
   }
 }
