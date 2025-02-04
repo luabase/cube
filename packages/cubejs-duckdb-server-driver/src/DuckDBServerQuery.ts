@@ -73,6 +73,7 @@ export class DuckDBServerQuery extends BaseQuery {
     templates.functions.DATETRUNC = 'DATE_TRUNC({{ args_concat }})';
     templates.functions.LEAST = 'LEAST({{ args_concat }})';
     templates.functions.GREATEST = 'GREATEST({{ args_concat }})';
+    templates.filters.time_range_filter = '{{ column }}::timestamptz >= {{ from_timestamp }} AND {{ column }}::timestamptz <= {{ to_timestamp }}';
     return templates;
   }
 }
