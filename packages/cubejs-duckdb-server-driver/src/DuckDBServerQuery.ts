@@ -1,4 +1,4 @@
-import { BaseFilter, BaseQuery, BaseTimeDimension } from '@cubejs-backend/schema-compiler';
+import { BaseFilter, BaseQuery } from '@cubejs-backend/schema-compiler';
 
 const GRANULARITY_TO_INTERVAL: Record<string, (date: string) => string> = {
   day: date => `DATE_TRUNC('day', ${date})`,
@@ -15,7 +15,7 @@ class DuckDBServerFilter extends BaseFilter {
 }
 
 export class DuckDBServerQuery extends BaseQuery {
-  public newFilter(filter: any): BaseFilter {
+  public newFilter(filter: any): DuckDBServerFilter {
     return new DuckDBServerFilter(this, filter);
   }
 
@@ -25,49 +25,6 @@ export class DuckDBServerQuery extends BaseQuery {
 
   public timeGroupedColumn(granularity: string, dimension: string) {
     return GRANULARITY_TO_INTERVAL[granularity](dimension);
-  }
-
-  public runningTotalDateJoinCondition() {
-    return this.timeDimensions.map(
-      (d: BaseTimeDimension) => [
-        d,
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        (dateFrom: string, dateTo: string, dateField: string, dimensionDateFrom: string, dimensionDateTo: string) => `${this.timeStampCast(dateField)} >= ${this.timeStampCast(dimensionDateFrom)} AND ${this.timeStampCast(dateField)} <= ${dateTo}`
-      ]
-    );
-  }
-
-  public rollingWindowToDateJoinCondition(granularity: string) {
-    return this.timeDimensions.map(
-      (d: BaseTimeDimension) => [
-        d,
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        (dateFrom: string, dateTo: string, dateField: string, dimensionDateFrom: string, dimensionDateTo: string, isFromStartToEnd: string) => `${this.timeStampCast(dateField)} >= ${this.timeGroupedColumn(granularity, dateFrom)} AND ${this.timeStampCast(dateField)} <= ${dateTo}`
-      ]
-    );
-  }
-
-  public rollingWindowDateJoinCondition(trailingInterval: string, leadingInterval: string, offset: string) {
-    offset = offset || 'end';
-    return this.timeDimensions.map(
-      (d: BaseTimeDimension) => [d, (dateFrom: string, dateTo: string, dateField: string, dimensionDateFrom: string, dimensionDateTo: string, isFromStartToEnd: string) => {
-        // dateFrom based window
-        const conditions = [];
-        if (trailingInterval !== 'unbounded') {
-          const startDate = isFromStartToEnd || offset === 'start' ? dateFrom : dateTo;
-          const trailingStart = trailingInterval ? this.subtractInterval(startDate, trailingInterval) : startDate;
-          const sign = offset === 'start' ? '>=' : '>';
-          conditions.push(`${dateField}::timestamptz ${sign} ${trailingStart}`);
-        }
-        if (leadingInterval !== 'unbounded') {
-          const endDate = isFromStartToEnd || offset === 'end' ? dateTo : dateFrom;
-          const leadingEnd = leadingInterval ? this.addInterval(endDate, leadingInterval) : endDate;
-          const sign = offset === 'end' ? '<=' : '<';
-          conditions.push(`${dateField}::timestamptz ${sign} ${leadingEnd}`);
-        }
-        return conditions.length ? conditions.join(' AND ') : '1 = 1';
-      }]
-    );
   }
 
   /**
@@ -97,7 +54,10 @@ export class DuckDBServerQuery extends BaseQuery {
     templates.functions.LEAST = 'LEAST({{ args_concat }})';
     templates.functions.GREATEST = 'GREATEST({{ args_concat }})';
     templates.filters.time_range_filter = '{{ column }}::timestamptz >= {{ from_timestamp }} AND {{ column }}::timestamptz <= {{ to_timestamp }}';
-    console.log('+++ SQL TEMPLATES', templates);
     return templates;
+  }
+
+  public get shouldReuseParams() {
+    return true;
   }
 }

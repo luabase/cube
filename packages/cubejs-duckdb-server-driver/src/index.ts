@@ -1,5 +1,5 @@
 import { DuckDBServerDriver } from './DuckDBServerDriver';
 
-export * from './DuckDBServerDriver';
+export { DuckDBServerDriver };
 
 export default DuckDBServerDriver;
