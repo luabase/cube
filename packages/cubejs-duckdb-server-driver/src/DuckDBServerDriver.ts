@@ -1,10 +1,8 @@
-import axios, { AxiosInstance } from "axios";
+import axios, { AxiosInstance } from 'axios';
 import {
   BaseDriver,
   DriverInterface,
-  StreamOptions,
   QueryOptions,
-  StreamTableData,
   GenericDataBaseType,
 } from '@cubejs-backend/base-driver';
 import {
