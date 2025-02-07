@@ -28,7 +28,7 @@
     "@cubejs-backend/schema-compiler": "1.1.17",
     "@cubejs-backend/shared": "1.1.17",
     "agentkeepalive": "^4.5.0",
-    "apache-arrow": "^17.0.0",
+    "apache-arrow": "^19.0.0",
     "axios": "^1.7.7"
   },
   "license": "UNLICENSED",
