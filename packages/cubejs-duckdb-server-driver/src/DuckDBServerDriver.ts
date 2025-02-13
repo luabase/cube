@@ -1,4 +1,4 @@
-import axios, { AxiosInstance } from 'axios';
+import axios, { AxiosError, AxiosInstance } from 'axios';
 import {
   BaseDriver,
   DriverInterface,
@@ -150,12 +150,19 @@ export class DuckDBServerDriver extends BaseDriver implements DriverInterface {
       'Content-Type': 'application/json'
     };
 
-    const response = await this.client.post('/', data, {
-      headers,
-      responseType: 'arraybuffer'
-    });
-
-    return tableFromIPC(new Uint8Array(response.data));
+    try {
+      const response = await this.client.post('/', data, {
+        headers,
+        responseType: 'arraybuffer'
+      });
+      return tableFromIPC(new Uint8Array(response.data));
+    } catch (e) {
+      if (e instanceof AxiosError && e.response) {
+        throw new Error(e.response.data);
+      } else {
+        throw e;
+      }
+    }
   }
 
   public async query<R = unknown>(query: string, args: unknown[] = [], _options?: QueryOptions): Promise<R[]> {
