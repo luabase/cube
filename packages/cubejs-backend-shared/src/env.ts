@@ -170,6 +170,33 @@ const variables: Record<string, (...args: any) => any> = {
     // It's true by default for development
     return process.env.NODE_ENV !== 'production';
   },
+  scheduledRefreshQueriesPerAppId: () => {
+    const refreshQueries = get('CUBEJS_SCHEDULED_REFRESH_QUERIES_PER_APP_ID').asIntPositive();
+
+    if (refreshQueries) {
+      return refreshQueries;
+    }
+
+    const refreshConcurrency = get('CUBEJS_SCHEDULED_REFRESH_CONCURRENCY').asIntPositive();
+
+    if (refreshConcurrency) {
+      console.warn(
+        'The CUBEJS_SCHEDULED_REFRESH_CONCURRENCY is deprecated. Please, use the CUBEJS_SCHEDULED_REFRESH_QUERIES_PER_APP_ID instead.'
+      );
+    }
+
+    return refreshConcurrency;
+  },
+  refreshWorkerConcurrency: () => get('CUBEJS_REFRESH_WORKER_CONCURRENCY')
+    .asIntPositive(),
+  // eslint-disable-next-line consistent-return
+  scheduledRefreshTimezones: () => {
+    const timezones = get('CUBEJS_SCHEDULED_REFRESH_TIMEZONES').asString();
+
+    if (timezones) {
+      return timezones.split(',').map(t => t.trim());
+    }
+  },
   preAggregationsBuilder: () => get('CUBEJS_PRE_AGGREGATIONS_BUILDER').asBool(),
   gracefulShutdown: () => get('CUBEJS_GRACEFUL_SHUTDOWN')
     .asIntPositive(),
@@ -194,6 +221,16 @@ const variables: Record<string, (...args: any) => any> = {
     .asInt(),
   nativeSqlPlanner: () => get('CUBEJS_TESSERACT_SQL_PLANNER').asBool(),
   nativeOrchestrator: () => get('CUBEJS_TESSERACT_ORCHESTRATOR')
+    .default('false')
+    .asBoolStrict(),
+  transpilationWorkerThreads: () => get('CUBEJS_TRANSPILATION_WORKER_THREADS')
+    .default('false')
+    .asBoolStrict(),
+  transpilationWorkerThreadsCount: () => get('CUBEJS_TRANSPILATION_WORKER_THREADS_COUNT')
+    .default('0')
+    .asInt(),
+  // This one takes precedence over CUBEJS_TRANSPILATION_WORKER_THREADS
+  transpilationNative: () => get('CUBEJS_TRANSPILATION_NATIVE')
     .default('false')
     .asBoolStrict(),
 
@@ -1926,6 +1963,9 @@ const variables: Record<string, (...args: any) => any> = {
 
     return undefined;
   },
+  fastReloadEnabled: () => get('CUBEJS_FAST_RELOAD_ENABLED')
+    .default('false')
+    .asBoolStrict(),
 };
 
 type Vars = typeof variables;
