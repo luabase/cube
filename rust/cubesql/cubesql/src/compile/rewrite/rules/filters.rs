@@ -34,7 +34,7 @@ use chrono::{
         Numeric::{Day, Hour, Minute, Month, Second, Year},
         Pad::Zero,
     },
-    Datelike, Days, Duration, Months, NaiveDate, NaiveDateTime, Timelike, Weekday,
+    DateTime, Datelike, Days, Duration, Months, NaiveDate, NaiveDateTime, Timelike, Weekday,
 };
 use cubeclient::models::V1CubeMeta;
 use datafusion::{
@@ -2807,7 +2807,7 @@ impl FilterRules {
                                         ScalarValue::TimestampNanosecond(_, _)
                                         | ScalarValue::Date32(_)
                                         | ScalarValue::Date64(_) => {
-                                            if let Some(timestamp) =
+                                            if let Ok(Some(timestamp)) =
                                                 Self::scalar_to_native_datetime(&literal)
                                             {
                                                 let value = format_iso_timestamp(timestamp);
@@ -2842,7 +2842,10 @@ impl FilterRules {
                                                 continue;
                                             }
                                         }
-                                        x => panic!("Unsupported filter scalar: {:?}", x),
+                                        x => {
+                                            log::trace!("Unsupported filter scalar: {x:?}");
+                                            continue;
+                                        }
                                     };
 
                                     subst.insert(
@@ -3218,8 +3221,7 @@ impl FilterRules {
             for year in years {
                 for aliases in aliases_es.iter() {
                     if let ScalarValue::Int64(Some(year)) = year {
-                        let year = year.clone();
-                        if year < 1000 || year > 9999 {
+                        if !(1000..=9999).contains(&year) {
                             continue;
                         }
 
@@ -3442,6 +3444,7 @@ impl FilterRules {
     }
 
     // Transform ?expr IN (?literal) to ?expr = ?literal
+    // TODO it's incorrect: inner expr can be null, or can be non-literal (and domain in not clear)
     fn transform_filter_in_to_equal(
         &self,
         negated_var: &'static str,
@@ -3499,9 +3502,12 @@ impl FilterRules {
             for aliases in aliases_es {
                 if let Some(list) = &egraph[subst[list_var]].data.constant_in_list {
                     let values = list
-                        .into_iter()
+                        .iter()
                         .map(|literal| FilterRules::scalar_to_value(literal))
-                        .collect::<Vec<_>>();
+                        .collect::<Result<Vec<_>, _>>();
+                    let Ok(values) = values else {
+                        return false;
+                    };
 
                     if let Some((member_name, cube)) = Self::filter_member_name(
                         egraph,
@@ -3552,8 +3558,8 @@ impl FilterRules {
         }
     }
 
-    fn scalar_to_value(literal: &ScalarValue) -> String {
-        match literal {
+    fn scalar_to_value(literal: &ScalarValue) -> Result<String, &'static str> {
+        Ok(match literal {
             ScalarValue::Utf8(Some(value)) => value.to_string(),
             ScalarValue::Int64(Some(value)) => value.to_string(),
             ScalarValue::Boolean(Some(value)) => value.to_string(),
@@ -3564,18 +3570,24 @@ impl FilterRules {
             ScalarValue::TimestampNanosecond(_, _)
             | ScalarValue::Date32(_)
             | ScalarValue::Date64(_) => {
-                if let Some(timestamp) = Self::scalar_to_native_datetime(literal) {
-                    return format_iso_timestamp(timestamp);
+                if let Some(timestamp) = Self::scalar_to_native_datetime(literal)? {
+                    format_iso_timestamp(timestamp)
+                } else {
+                    log::trace!("Unsupported filter scalar: {literal:?}");
+                    return Err("Unsupported filter scalar");
                 }
-
-                panic!("Unsupported filter scalar: {:?}", literal);
             }
-            x => panic!("Unsupported filter scalar: {:?}", x),
-        }
+            x => {
+                log::trace!("Unsupported filter scalar: {x:?}");
+                return Err("Unsupported filter scalar");
+            }
+        })
     }
 
-    fn scalar_to_native_datetime(literal: &ScalarValue) -> Option<NaiveDateTime> {
-        match literal {
+    fn scalar_to_native_datetime(
+        literal: &ScalarValue,
+    ) -> Result<Option<NaiveDateTime>, &'static str> {
+        Ok(match literal {
             ScalarValue::TimestampNanosecond(_, _)
             | ScalarValue::Date32(_)
             | ScalarValue::Date64(_) => {
@@ -3589,13 +3601,17 @@ impl FilterRules {
                 } else if let Some(array) = array.as_any().downcast_ref::<Date64Array>() {
                     array.value_as_datetime(0)
                 } else {
-                    panic!("Unexpected array type: {:?}", array.data_type())
+                    log::trace!("Unexpected array type: {:?}", array.data_type());
+                    return Err("Unexpected array type");
                 };
 
                 timestamp
             }
-            _ => panic!("Unsupported filter scalar: {:?}", literal),
-        }
+            x => {
+                log::trace!("Unsupported filter scalar: {x:?}");
+                return Err("Unsupported filter scalar");
+            }
+        })
     }
 
     fn transform_is_null(
@@ -3713,15 +3729,15 @@ impl FilterRules {
         }
     }
 
-    fn filter_member_name(
+    fn filter_member_name<'meta>(
         egraph: &mut CubeEGraph,
         subst: &Subst,
-        meta_context: &Arc<MetaContext>,
+        meta_context: &'meta MetaContext,
         alias_to_cube_var: Var,
         column_var: Var,
         members_var: Var,
         aliases: &Vec<(String, String)>,
-    ) -> Option<(String, V1CubeMeta)> {
+    ) -> Option<(String, &'meta V1CubeMeta)> {
         Self::filter_member_name_with_granularity(
             egraph,
             subst,
@@ -3734,15 +3750,15 @@ impl FilterRules {
         .map(|(name, _, meta)| (name, meta))
     }
 
-    fn filter_member_name_with_granularity(
+    fn filter_member_name_with_granularity<'meta>(
         egraph: &mut CubeEGraph,
         subst: &Subst,
-        meta_context: &Arc<MetaContext>,
+        meta_context: &'meta MetaContext,
         alias_to_cube_var: Var,
         column_var: Var,
         members_var: Var,
         aliases: &Vec<(String, String)>,
-    ) -> Option<(String, Option<String>, V1CubeMeta)> {
+    ) -> Option<(String, Option<String>, &'meta V1CubeMeta)> {
         let alias_to_cubes: Vec<_> =
             var_iter!(egraph[subst[alias_to_cube_var]], FilterReplacerAliasToCube)
                 .cloned()
@@ -3865,10 +3881,15 @@ impl FilterRules {
                                         Some(MemberType::Time) => (),
                                         _ => continue,
                                     }
-                                    let values = vec![
-                                        FilterRules::scalar_to_value(&low),
-                                        FilterRules::scalar_to_value(&high),
-                                    ];
+
+                                    let Ok(low) = FilterRules::scalar_to_value(&low) else {
+                                        return false;
+                                    };
+                                    let Ok(high) = FilterRules::scalar_to_value(&high) else {
+                                        return false;
+                                    };
+
+                                    let values = vec![low, high];
 
                                     subst.insert(
                                         filter_member_var,
@@ -4146,7 +4167,7 @@ impl FilterRules {
     ) -> impl Fn(&mut CubeEGraph, &mut Subst) -> bool {
         let filter_ops_var = var!(filter_ops_var);
         move |egraph, subst| {
-            if let Some(true) = egraph[subst[filter_ops_var]].data.is_empty_list.clone() {
+            if let Some(true) = egraph[subst[filter_ops_var]].data.is_empty_list {
                 return true;
             }
 
@@ -4212,19 +4233,17 @@ impl FilterRules {
                         for date_range_end_op in
                             var_iter!(egraph[subst[date_range_end_op_var]], FilterMemberOp)
                         {
-                            let valid_left_filters =
-                                vec!["afterDate".to_string(), "afterOrOnDate".to_string()];
-                            let valid_right_filters =
-                                vec!["beforeDate".to_string(), "beforeOrOnDate".to_string()];
+                            let valid_left_filters = ["afterDate", "afterOrOnDate"];
+                            let valid_right_filters = ["beforeDate", "beforeOrOnDate"];
 
                             let swap_left_and_right;
 
-                            if valid_left_filters.contains(date_range_start_op)
-                                && valid_right_filters.contains(date_range_end_op)
+                            if valid_left_filters.contains(&date_range_start_op.as_str())
+                                && valid_right_filters.contains(&date_range_end_op.as_str())
                             {
                                 swap_left_and_right = false;
-                            } else if valid_left_filters.contains(date_range_end_op)
-                                && valid_right_filters.contains(date_range_start_op)
+                            } else if valid_left_filters.contains(&date_range_end_op.as_str())
+                                && valid_right_filters.contains(&date_range_start_op.as_str())
                             {
                                 swap_left_and_right = true;
                             } else {
@@ -4485,8 +4504,8 @@ impl FilterRules {
             if literals.is_empty() {
                 return false;
             }
-            for escape_char in escape_chars {
-                if let Some('!') = escape_char {
+            for escape_char in escape_chars.into_iter().flatten() {
+                if escape_char == '!' {
                     for literal in literals.iter() {
                         let literal_value = match &literal {
                             ScalarValue::Utf8(Some(literal_value)) => literal_value.to_string(),
@@ -4695,7 +4714,7 @@ impl FilterRules {
 
                 for negated in var_iter!(egraph[subst[negated_var]], InListExprNegated) {
                     let Some(values) = list
-                        .into_iter()
+                        .iter()
                         .map(|literal| Self::scalar_dt_to_naive_datetime(literal))
                         .collect::<Option<HashSet<_>>>()
                         .map(|values| {
@@ -4814,7 +4833,7 @@ impl FilterRules {
             };
             let ts_seconds = *ts / 1_000_000_000;
             let ts_nanos = (*ts % 1_000_000_000) as u32;
-            let dt = NaiveDateTime::from_timestamp_opt(ts_seconds, ts_nanos).map(|dt| Some(dt));
+            let dt = DateTime::from_timestamp(ts_seconds, ts_nanos).map(|dt| Some(dt.naive_utc()));
             return dt;
         };
 
@@ -4885,7 +4904,7 @@ impl FilterRules {
             return None;
         }
 
-        let new_dt = dt.clone();
+        let new_dt = dt;
         let new_dt = match granularity.as_str() {
             "year" => new_dt.checked_add_months(Months::new(12)),
             "quarter" | "qtr" => new_dt.checked_add_months(Months::new(3)),

@@ -8,14 +8,21 @@
 
 import R from 'ramda';
 import cronParser from 'cron-parser';
-
 import moment from 'moment-timezone';
 import inflection from 'inflection';
-import { FROM_PARTITION_RANGE, inDbTimeZone, MAX_SOURCE_ROW_LIMIT, QueryAlias, getEnv, timeSeries as timeSeriesBase } from '@cubejs-backend/shared';
 
+import {
+  FROM_PARTITION_RANGE,
+  MAX_SOURCE_ROW_LIMIT,
+  inDbTimeZone,
+  QueryAlias,
+  getEnv,
+  timeSeries as timeSeriesBase
+} from '@cubejs-backend/shared';
 import {
   buildSqlAndParams as nativeBuildSqlAndParams,
 } from '@cubejs-backend/native';
+
 import { UserError } from '../compiler/UserError';
 import { BaseMeasure } from './BaseMeasure';
 import { BaseDimension } from './BaseDimension';
@@ -26,6 +33,7 @@ import { BaseTimeDimension } from './BaseTimeDimension';
 import { ParamAllocator } from './ParamAllocator';
 import { PreAggregations } from './PreAggregations';
 import { SqlParser } from '../parser/SqlParser';
+import { Granularity } from './Granularity';
 
 const DEFAULT_PREAGGREGATIONS_SCHEMA = 'stb_pre_aggregations';
 
@@ -654,7 +662,17 @@ export class BaseQuery {
       ungrouped: this.options.ungrouped
 
     };
-    const res = nativeBuildSqlAndParams(queryParams);
+    const buildResult = nativeBuildSqlAndParams(queryParams);
+
+    if (buildResult.error) {
+      if (buildResult.error.cause && buildResult.error.cause === 'User') {
+        throw new UserError(buildResult.error.message);
+      } else {
+        throw new Error(buildResult.error.message);
+      }
+    }
+
+    const res = buildResult.result;
     // FIXME
     res[1] = [...res[1]];
     return res;
@@ -934,8 +952,8 @@ export class BaseQuery {
           ).concat(multiStageMembers.map(m => `SELECT * FROM ${m.alias}`));
     }
 
-    // Move regular measures to multiplied ones if there're same
-    // cubes to calculate. Most of the times it'll be much faster to
+    // Move regular measures to multiplied ones if there are same
+    // cubes to calculate. Most of the time it'll be much faster to
     // calculate as there will be only single scan per cube.
     if (
       regularMeasures.length &&
@@ -1379,7 +1397,47 @@ export class BaseQuery {
   }
 
   granularityHierarchies() {
-    return R.fromPairs(Object.keys(standardGranularitiesParents).map(k => [k, this.granularityParentHierarchy(k)]));
+    return this.cacheValue(
+      // If time dimension custom granularity in data model is defined without
+      // timezone information they are treated in query timezone.
+      // Because of that it's not possible to correctly precalculate
+      // granularities hierarchies on startup as they are specific for each timezone.
+      ['granularityHierarchies', this.timezone],
+      () => R.reduce(
+        (hierarchies, cube) => R.reduce(
+          (acc, [tdName, td]) => {
+            const dimensionKey = `${cube}.${tdName}`;
+
+            // constructing standard granularities for time dimension
+            const standardEntries = R.fromPairs(
+              R.keys(standardGranularitiesParents).map(gr => [
+                `${dimensionKey}.${gr}`,
+                standardGranularitiesParents[gr],
+              ]),
+            );
+
+            // If we have custom granularities in time dimension
+            const customEntries = td.granularities
+              ? R.fromPairs(
+                R.keys(td.granularities).map(granularityName => {
+                  const grObj = new Granularity(this, { dimension: dimensionKey, granularity: granularityName });
+                  return [
+                    `${dimensionKey}.${granularityName}`,
+                    [granularityName, ...standardGranularitiesParents[grObj.minGranularity()]],
+                  ];
+                }),
+              )
+              : {};
+
+            return { ...acc, ...standardEntries, ...customEntries };
+          },
+          hierarchies,
+          R.toPairs(this.cubeEvaluator.timeDimensionsForCube(cube)),
+        ),
+        {},
+        R.keys(this.cubeEvaluator.evaluatedCubes),
+      ),
+    );
   }
 
   granularityParentHierarchy(granularity) {
@@ -1413,18 +1471,62 @@ export class BaseQuery {
 
   overTimeSeriesQuery(baseQueryFn, cumulativeMeasure, fromRollup) {
     const dateJoinCondition = cumulativeMeasure.dateJoinCondition();
+    const uniqDateJoinCondition = R.uniqBy(djc => djc[0].dimension, dateJoinCondition);
     const cumulativeMeasures = [cumulativeMeasure];
     if (!this.timeDimensions.find(d => d.granularity)) {
-      const filters = this.segments.concat(this.filters).concat(this.dateFromStartToEndConditionSql(dateJoinCondition, fromRollup, false));
+      const filters = this.segments
+        .concat(this.filters)
+        .concat(this.dateFromStartToEndConditionSql(
+          // If the same time dimension is passed more than once, no need to build the same
+          // filter condition again and again. Different granularities don't play role here,
+          // as rollingWindow.granularity is used for filtering.
+          uniqDateJoinCondition,
+          fromRollup,
+          false
+        ));
       return baseQueryFn(cumulativeMeasures, filters, false);
     }
-    const dateSeriesSql = this.timeDimensions.map(d => this.dateSeriesSql(d)).join(', ');
-    const filters = this.segments.concat(this.filters).concat(this.dateFromStartToEndConditionSql(dateJoinCondition, fromRollup, true));
+
+    if (this.timeDimensions.filter(d => !d.dateRange && d.granularity).length > 0) {
+      throw new UserError('Time series queries without dateRange aren\'t supported');
+    }
+
+    // We can't do meaningful query if few time dimensions with different ranges passed,
+    // it won't be possible to join them together without losing some rows.
+    const rangedTimeDimensions = this.timeDimensions.filter(d => d.dateRange && d.granularity);
+    const uniqTimeDimensionWithRanges = R.uniqBy(d => d.dateRange, rangedTimeDimensions);
+    if (uniqTimeDimensionWithRanges.length > 1) {
+      throw new Error('Can\'t build query for time dimensions with different date ranges');
+    }
+
+    // We need to generate time series table for the lowest granularity among all time dimensions
+    const [dateSeriesDimension, dateSeriesGranularity] = this.timeDimensions.filter(d => d.granularity)
+      .reduce(([prevDim, prevGran], d) => {
+        const mg = this.minGranularity(prevGran, d.resolvedGranularity());
+        if (mg === d.resolvedGranularity()) {
+          return [d, mg];
+        }
+        return [prevDim, mg];
+      }, [null, null]);
+
+    const dateSeriesSql = this.dateSeriesSql(dateSeriesDimension);
+
+    // If the same time dimension is passed more than once, no need to build the same
+    // filter condition again and again. Different granularities don't play role here,
+    // as rollingWindow.granularity is used for filtering.
+    const filters = this.segments
+      .concat(this.filters)
+      .concat(this.dateFromStartToEndConditionSql(
+        uniqDateJoinCondition,
+        fromRollup,
+        true
+      ));
     const baseQuery = this.groupedUngroupedSelect(
       () => baseQueryFn(cumulativeMeasures, filters),
       cumulativeMeasure.shouldUngroupForCumulative(),
       !cumulativeMeasure.shouldUngroupForCumulative() && this.minGranularity(
-        cumulativeMeasure.windowGranularity(), this.timeDimensions.find(d => d.granularity).resolvedGranularity()
+        cumulativeMeasure.windowGranularity(),
+        dateSeriesGranularity
       ) || undefined
     );
     const baseQueryAlias = this.cubeAlias('base');
@@ -1444,8 +1546,25 @@ export class BaseQuery {
       dateSeriesSql,
       baseQuery,
       dateJoinConditionSql,
-      baseQueryAlias
+      baseQueryAlias,
+      dateSeriesDimension.granularity,
     );
+  }
+
+  overTimeSeriesSelect(cumulativeMeasures, dateSeriesSql, baseQuery, dateJoinConditionSql, baseQueryAlias, dateSeriesGranularity) {
+    const forSelect = this.overTimeSeriesForSelect(cumulativeMeasures, dateSeriesGranularity);
+    return `SELECT ${forSelect} FROM ${dateSeriesSql}` +
+      ` LEFT JOIN (${baseQuery}) ${this.asSyntaxJoin} ${baseQueryAlias} ON ${dateJoinConditionSql}` +
+      this.groupByClause();
+  }
+
+  overTimeSeriesForSelect(cumulativeMeasures, dateSeriesGranularity) {
+    return this.dimensions
+      .map(s => s.cumulativeSelectColumns())
+      .concat(this.timeDimensions.map(d => d.dateSeriesSelectColumn(null, dateSeriesGranularity)))
+      .concat(cumulativeMeasures.map(s => s.cumulativeSelectColumns()))
+      .filter(c => !!c)
+      .join(', ');
   }
 
   dateFromStartToEndConditionSql(dateJoinCondition, fromRollup, isFromStartToEnd) {
@@ -1470,24 +1589,6 @@ export class BaseQuery {
         }
       })
     );
-  }
-
-  overTimeSeriesSelect(cumulativeMeasures, dateSeriesSql, baseQuery, dateJoinConditionSql, baseQueryAlias) {
-    const forSelect = this.overTimeSeriesForSelect(cumulativeMeasures);
-    return `SELECT ${forSelect} FROM ${dateSeriesSql}` +
-      ` LEFT JOIN (${baseQuery}) ${this.asSyntaxJoin} ${baseQueryAlias} ON ${dateJoinConditionSql}` +
-      this.groupByClause();
-  }
-
-  overTimeSeriesForSelect(cumulativeMeasures) {
-    return this.dimensions.map(s => s.cumulativeSelectColumns()).concat(this.dateSeriesSelect()).concat(
-      cumulativeMeasures.map(s => s.cumulativeSelectColumns()),
-    ).filter(c => !!c)
-      .join(', ');
-  }
-
-  dateSeriesSelect() {
-    return this.timeDimensions.map(d => d.dateSeriesSelectColumn());
   }
 
   /**
@@ -1646,7 +1747,8 @@ export class BaseQuery {
 
   /**
    *
-   * @param {{sql: string, on: {cubeName: string, expression: Function}, joinType: 'LEFT' | 'INNER', alias: string}} customJoin
+   * @param {{sql: string, on: {cubeName: string, expression: Function}, joinType: 'LEFT' | 'INNER', alias: string}}
+   *   customJoin
    * @returns {JoinItem}
    */
   customSubQueryJoin(customJoin) {
@@ -3332,6 +3434,7 @@ export class BaseQuery {
         sort: '{{ expr }} {% if asc %}ASC{% else %}DESC{% endif %} NULLS {% if nulls_first %}FIRST{% else %}LAST{% endif %}',
         order_by: '{% if index %} {{ index }} {% else %} {{ expr }} {% endif %} {% if asc %}ASC{% else %}DESC{% endif %}{% if nulls_first %} NULLS FIRST{% endif %}',
         cast: 'CAST({{ expr }} AS {{ data_type }})',
+        cast_to_string: 'CAST({{ expr }} AS TEXT)',
         window_function: '{{ fun_call }} OVER ({% if partition_by_concat %}PARTITION BY {{ partition_by_concat }}{% if order_by_concat or window_frame %} {% endif %}{% endif %}{% if order_by_concat %}ORDER BY {{ order_by_concat }}{% if window_frame %} {% endif %}{% endif %}{% if window_frame %}{{ window_frame }}{% endif %})',
         window_frame_bounds: '{{ frame_type }} BETWEEN {{ frame_start }} AND {{ frame_end }}',
         in_list: '{{ expr }} {% if negated %}NOT {% endif %}IN ({{ in_exprs_concat }})',
@@ -3348,6 +3451,7 @@ export class BaseQuery {
         like: '{{ expr }} {% if negated %}NOT {% endif %}LIKE {{ pattern }}',
         ilike: '{{ expr }} {% if negated %}NOT {% endif %}ILIKE {{ pattern }}',
         like_escape: '{{ like_expr }} ESCAPE {{ escape_char }}',
+        concat_strings: '{{ strings | join(\' || \' ) }}',
       },
       filters: {
         equals: '{{ column }} = {{ value }}{{ is_null_check }}',
@@ -3801,6 +3905,12 @@ export class BaseQuery {
 
   securityContextForRust() {
     return this.contextSymbolsProxy(this.contextSymbols.securityContext);
+  }
+
+  sqlUtilsForRust() {
+    return {
+      convertTz: this.convertTz.bind(this)
+    };
   }
 
   contextSymbolsProxy(symbols) {
