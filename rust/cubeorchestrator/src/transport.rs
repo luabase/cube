@@ -159,7 +159,7 @@ pub struct ConfigItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub member_type: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub format: Option<String>,
+    pub format: Option<ConfigItemFormat>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub meta: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -170,6 +170,17 @@ pub struct ConfigItem {
     pub granularities: Option<Vec<GranularityMeta>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub granularity: Option<GranularityMeta>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ConfigItemFormat {
+   Simple(String),
+   Map {
+       label: String,
+       #[serde(rename = "type")]
+       format_type: String
+   },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -193,7 +204,7 @@ pub struct AnnotatedConfigItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub member_type: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub format: Option<String>,
+    pub format: Option<ConfigItemFormat>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub meta: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
