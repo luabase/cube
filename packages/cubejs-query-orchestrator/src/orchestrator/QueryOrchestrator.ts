@@ -68,7 +68,7 @@ export class QueryOrchestrator {
     this.rollupOnlyMode = options.rollupOnlyMode;
     const cacheAndQueueDriver = detectQueueAndCacheDriver(options);
 
-    if (!['memory', 'cubestore'].includes(cacheAndQueueDriver)) {
+    if (!['redis', 'memory', 'cubestore'].includes(cacheAndQueueDriver)) {
       throw new Error(
         `Only 'cubestore' or 'memory' are supported for cacheAndQueueDriver option, passed: ${cacheAndQueueDriver}`
       );

@@ -132,6 +132,7 @@ const querySchema = Joi.object().keys({
   ungrouped: Joi.boolean(),
   responseFormat: Joi.valid('default', 'compact'),
   subqueryJoins: Joi.array().items(subqueryJoin),
+  forceNoCache: Joi.boolean(),
 });
 
 const normalizeQueryOrder = order => {

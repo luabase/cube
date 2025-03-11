@@ -1,0 +1,48 @@
+{
+  "name": "@cubejs-backend/redis-cache-driver",
+  "description": "Cube Redis Cache driver",
+  "author": "Alexander Kolov",
+  "version": "1.2.14",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/luabase/cube.git",
+    "directory": "packages/cubejs-redis-cache-driver"
+  },
+  "engines": {
+    "node": "^14.0.0 || ^16.0.0 || >=17.0.0"
+  },
+  "files": [
+    "dist/src/*"
+  ],
+  "main": "dist/src/index.js",
+  "typings": "dist/src/index.d.ts",
+  "scripts": {
+    "build": "rm -rf dist && npm run tsc",
+    "tsc": "tsc",
+    "watch": "tsc -w",
+    "lint": "eslint src/* --ext .ts",
+    "lint:fix": "eslint --fix src/* --ext .ts"
+  },
+  "dependencies": {
+    "@cubejs-backend/base-driver": "1.2.14",
+    "@cubejs-backend/schema-compiler": "1.2.14",
+    "@cubejs-backend/native": "1.2.14",
+    "@cubejs-backend/shared": "1.2.14",
+    "ioredis": "^5.4.1"
+  },
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "@cubejs-backend/linter": "^1.0.0",
+    "@types/node": "^18",
+    "typescript": "~5.2.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "jest": {
+    "testEnvironment": "node"
+  },
+  "eslintConfig": {
+    "extends": "../cubejs-linter"
+  }
+}

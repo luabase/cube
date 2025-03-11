@@ -12,14 +12,14 @@ import {
   DriverInterface,
 } from '@cubejs-backend/base-driver';
 
+import { RedisCacheDriver } from '@cubejs-backend/redis-cache-driver';
 import { QueryQueue } from './QueryQueue';
 import { ContinueWaitError } from './ContinueWaitError';
 import { LocalCacheDriver } from './LocalCacheDriver';
 import { DriverFactory, DriverFactoryByDataSource } from './DriverFactory';
-import { PreAggregationDescription } from './PreAggregations';
+import { LoadPreAggregationResult, PreAggregationDescription } from './PreAggregations';
 import { getCacheHash } from './utils';
 import { CacheAndQueryDriverType } from './QueryOrchestrator';
-import { RedisQueryCacheClient } from './RedisQueryCacheClient';
 
 type QueryOptions = {
   external?: boolean;
@@ -72,25 +72,7 @@ export type QueryBody = {
 /**
  * Temp (partition/lambda) table definition.
  */
-export type TempTable = {
-  type: string; // for ex.: "rollup"
-  buildRangeEnd: string;
-  lastUpdatedAt: number;
-  queryKey: unknown;
-  refreshKeyValues: [{
-    'refresh_key': string,
-  }][];
-  targetTableName: string; // full table name (with suffix)
-  lambdaTable?: {
-    name: string,
-    columns: {
-      name: string,
-      type: string,
-      attributes?: string[],
-    }[];
-    csvRows: string;
-  };
-};
+export type TempTable = LoadPreAggregationResult;
 
 /**
  * Pre-aggregation table (stored in the first element) to temp table
@@ -100,6 +82,8 @@ export type PreAggTableToTempTable = [
   string, // common table name (without suffix)
   TempTable,
 ];
+
+export type PreAggTableToTempTableNames = [string, { targetTableName: string; }];
 
 export type CacheKeyItem = string | string[] | QueryTuple | QueryTuple[] | undefined;
 
@@ -142,8 +126,6 @@ export class QueryCache {
 
   protected memoryCache: LRUCache<string, CacheEntry>;
 
-  protected redisCache?: RedisQueryCacheClient;
-
   public constructor(
     protected readonly redisPrefix: string,
     protected readonly driverFactory: DriverFactoryByDataSource,
@@ -151,8 +133,13 @@ export class QueryCache {
     public readonly options: QueryCacheOptions = {}
   ) {
     switch (options.cacheAndQueueDriver || 'memory') {
+      case 'redis':
+        this.cacheDriver = new RedisCacheDriver({ logger: this.logger });
+        this.logger('Using redis cache', {});
+        break;
       case 'memory':
         this.cacheDriver = new LocalCacheDriver();
+        this.logger('Using local memory cache', {});
         break;
       case 'cubestore':
         if (!options.cubeStoreDriverFactory) {
@@ -162,6 +149,7 @@ export class QueryCache {
         this.cacheDriver = new CubeStoreCacheDriver(
           options.cubeStoreDriverFactory
         );
+        this.logger('Using cube store cache', {});
         break;
       default:
         throw new Error(`Unknown cache driver: ${options.cacheAndQueueDriver}`);
@@ -170,16 +158,6 @@ export class QueryCache {
     this.memoryCache = new LRUCache<string, CacheEntry>({
       max: options.maxInMemoryCacheEntries || 10000
     });
-
-    const redisUrl = process.env.CUBEJS_DEFINITE_REDIS_QUERY_CACHE_URL;
-    const redisNamespace = process.env.CUBEJS_DEFINITE_REDIS_QUERY_CACHE_NAMESPACE;
-
-    if (redisUrl && redisNamespace) {
-      this.redisCache = new RedisQueryCacheClient({ url: redisUrl, namespace: redisNamespace, logger: this.logger });
-    }
-    else {
-      this.logger('Redis cache is disabled', { redisUrl, redisNamespace })
-    }
   }
 
   /**
@@ -297,6 +275,7 @@ export class QueryCache {
           requestId: queryBody.requestId,
           dataSource: queryBody.dataSource,
           persistent: queryBody.persistent,
+          forceNoCache
         }
       );
     }
@@ -315,6 +294,7 @@ export class QueryCache {
           dataSource: queryBody.dataSource,
           persistent: queryBody.persistent,
           skipRefreshKeyWaitForRenew: true,
+          forceNoCache
         }
       );
 
@@ -410,7 +390,7 @@ export class QueryCache {
 
   public static replacePreAggregationTableNames(
     queryAndParams: string | QueryWithParams,
-    preAggregationsTablesToTempTables: PreAggTableToTempTable[],
+    preAggregationsTablesToTempTables: PreAggTableToTempTableNames[],
   ): string | QueryTuple {
     const [keyQuery, params, queryOptions] = Array.isArray(queryAndParams)
       ? queryAndParams
@@ -689,7 +669,7 @@ export class QueryCache {
   /**
    * Returns registered queries queues hash table.
    */
-  public getQueues(): { [dataSource: string]: QueryQueue } {
+  public getQueues(): {[dataSource: string]: QueryQueue} {
     return this.queue;
   }
 
@@ -706,6 +686,7 @@ export class QueryCache {
       external?: boolean,
       dataSource: string,
       persistent?: boolean,
+      forceNoCache?: boolean,
     }
   ) {
     this.renewQuery(
@@ -744,6 +725,7 @@ export class QueryCache {
       lambdaTypes?: TableStructure,
       persistent?: boolean,
       renewCycle?: boolean,
+      forceNoCache?: boolean,
     }
   ) {
     options = options || { dataSource: 'default' };
@@ -780,6 +762,7 @@ export class QueryCache {
               persistent: options.persistent,
               primaryQuery: true,
               renewCycle: options.renewCycle,
+              forceNoCache: options.forceNoCache,
             }
           ),
           refreshKeyValues: cacheKeyQueryResults,
@@ -874,18 +857,12 @@ export class QueryCache {
         dataSource: options.dataSource,
         useCsvQuery: options.useCsvQuery,
         lambdaTypes: options.lambdaTypes,
-      }).then(async res => {
+      }).then(res => {
         const result = {
           time: (new Date()).getTime(),
           result: res,
           renewalKey
         };
-
-        if (this.redisCache) {
-          await this.redisCache.setJson(redisKey, result, expiration);
-          this.logger('Storing redis cache for', { cacheKey, requestId: options.requestId, spanId, primaryQuery, renewCycle, expiration });
-        }
-
         return this
           .cacheDriver
           .set(redisKey, result, expiration)
@@ -917,7 +894,7 @@ export class QueryCache {
 
     if (options.forceNoCache) {
       this.logger('Force no cache for', { cacheKey, requestId: options.requestId, spanId, primaryQuery, renewCycle });
-      return await fetchNew();
+      return fetchNew();
     }
 
     let res;
@@ -958,40 +935,8 @@ export class QueryCache {
       }
     }
 
-    if (!res && this.redisCache) {
-      const redisValue = await this.redisCache.getJson(redisKey);
-      if (redisValue) {
-        if (renewalKey && redisValue.renewalKey !== renewalKey) {
-          this.redisCache?.delete(redisKey);
-          this.logger('Deleting redis cache entry because renewal key has changed', {
-            cacheKey,
-            requestId: options.requestId,
-            spanId,
-            renewalKey: redisValue.renewalKey,
-            newRenewalKey: renewalKey
-          });
-        }
-        else {
-          this.logger('Found redis cache entry', {
-            cacheKey,
-            requestId: options.requestId,
-            spanId
-          });
-          res = redisValue;
-        }
-      }
-      else {
-        this.logger('Missing redis cache entry', {
-          cacheKey,
-          requestId: options.requestId,
-          spanId
-        })
-      }
-    }
-
     if (!res) {
       res = await this.cacheDriver.get(redisKey);
-      this.logger('Found driver cache for', { cacheKey, requestId: options.requestId, spanId, primaryQuery, renewCycle });
     }
 
     if (res) {
@@ -1019,17 +964,14 @@ export class QueryCache {
       ) {
         if (options.waitForRenew) {
           this.logger('Waiting for renew', { cacheKey, renewalThreshold, requestId: options.requestId, spanId, primaryQuery, renewCycle });
-          return await fetchNew();
+          return fetchNew();
         } else {
           this.logger('Renewing existing key', { cacheKey, renewalThreshold, requestId: options.requestId, spanId, primaryQuery, renewCycle });
-          try {
-            await fetchNew();
-          }
-          catch (e: any) {
+          fetchNew().catch(e => {
             if (!(e instanceof ContinueWaitError)) {
               this.logger('Error renewing', { cacheKey, error: e.stack || e, requestId: options.requestId, spanId, primaryQuery, renewCycle });
             }
-          }
+          });
         }
       }
       this.logger('Using cache for', { cacheKey, requestId: options.requestId, spanId, primaryQuery, renewCycle });
@@ -1039,7 +981,7 @@ export class QueryCache {
       return parsedResult.result;
     } else {
       this.logger('Missing cache for', { cacheKey, requestId: options.requestId, spanId, primaryQuery, renewCycle });
-      return await fetchNew();
+      return fetchNew();
     }
   }
 
