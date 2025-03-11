@@ -95,6 +95,8 @@ interface Query {
   ungrouped?: boolean;
   responseFormat?: ResultType;
 
+  forceNoCache?: boolean;
+
   // TODO incoming query, query with parsed exprs and query with evaluated exprs are all different types
   subqueryJoins?: Array<SubqueryJoins>,
 }

@@ -1553,6 +1553,7 @@ class ApiGateway {
       values: sqlQuery.sql[1],
       continueWait: true,
       renewQuery: normalizedQuery.renewQuery,
+      forceNoCache: normalizedQuery.forceNoCache,
       requestId: context.requestId,
       context,
       persistent: false,

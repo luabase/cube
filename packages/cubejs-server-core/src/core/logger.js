@@ -65,6 +65,7 @@ export const devLogger = (level) => (type, { error, warning, ...message }) => {
         'Storing result in redis',
         'Removing cached key from redis',
         'Redis ping successful',
+        'Force no cache for',
       ].includes(type)) {
         logDetails(true);
         break;

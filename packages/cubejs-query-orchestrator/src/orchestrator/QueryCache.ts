@@ -275,6 +275,7 @@ export class QueryCache {
           requestId: queryBody.requestId,
           dataSource: queryBody.dataSource,
           persistent: queryBody.persistent,
+          forceNoCache
         }
       );
     }
@@ -293,6 +294,7 @@ export class QueryCache {
           dataSource: queryBody.dataSource,
           persistent: queryBody.persistent,
           skipRefreshKeyWaitForRenew: true,
+          forceNoCache
         }
       );
 
@@ -684,6 +686,7 @@ export class QueryCache {
       external?: boolean,
       dataSource: string,
       persistent?: boolean,
+      forceNoCache?: boolean,
     }
   ) {
     this.renewQuery(
@@ -722,6 +725,7 @@ export class QueryCache {
       lambdaTypes?: TableStructure,
       persistent?: boolean,
       renewCycle?: boolean,
+      forceNoCache?: boolean,
     }
   ) {
     options = options || { dataSource: 'default' };
@@ -758,6 +762,7 @@ export class QueryCache {
               persistent: options.persistent,
               primaryQuery: true,
               renewCycle: options.renewCycle,
+              forceNoCache: options.forceNoCache,
             }
           ),
           refreshKeyValues: cacheKeyQueryResults,
