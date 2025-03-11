@@ -31,6 +31,7 @@
   "dependencies": {
     "@cubejs-backend/base-driver": "1.2.14",
     "@cubejs-backend/cubestore-driver": "1.2.14",
+    "@cubejs-backend/redis-cache-driver": "1.2.14",
     "@cubejs-backend/shared": "1.2.14",
     "csv-write-stream": "^2.0.0",
     "generic-pool": "^3.7.1",

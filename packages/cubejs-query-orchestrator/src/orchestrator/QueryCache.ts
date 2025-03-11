@@ -12,10 +12,10 @@ import {
   DriverInterface,
 } from '@cubejs-backend/base-driver';
 
+import { RedisCacheDriver } from '@cubejs-backend/redis-cache-driver';
 import { QueryQueue } from './QueryQueue';
 import { ContinueWaitError } from './ContinueWaitError';
 import { LocalCacheDriver } from './LocalCacheDriver';
-import { RedisCacheDriver } from '@cubejs-backend/redis-cache-driver';
 import { DriverFactory, DriverFactoryByDataSource } from './DriverFactory';
 import { LoadPreAggregationResult, PreAggregationDescription } from './PreAggregations';
 import { getCacheHash } from './utils';
