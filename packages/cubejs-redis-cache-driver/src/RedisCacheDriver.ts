@@ -5,6 +5,8 @@ import Redis from 'ioredis';
 export class RedisCacheDriver implements CacheDriverInterface {
   private redis: Redis;
 
+  private url: string;
+
   private namespace: string;
 
   private logger: any;
@@ -22,6 +24,7 @@ export class RedisCacheDriver implements CacheDriverInterface {
 
     this.logger = params.logger;
     this.namespace = redisNamespace;
+    this.url = redisUrl;
     this.redis = new Redis(redisUrl);
 
     this.redis.on('error', error => {
@@ -43,14 +46,20 @@ export class RedisCacheDriver implements CacheDriverInterface {
 
   public async get<R>(key: string): Promise<R | null> {
     const namespacedKey = this.getNamespacedKey(key);
+    const start = performance.now();
     const result = await this.redis.get(namespacedKey);
+    const duration = performance.now() - start;
+    this.logger('Getting cached result from redis', { requestId: '', duration: duration.toFixed(2), namespacedKey });
     return result ? JSON.parse(result) : null;
   }
 
   public async set(key: string, value: unknown, expiration: number): Promise<{ key: string, bytes: number }> {
     const namespacedKey = this.getNamespacedKey(key);
     const strValue = JSON.stringify(value);
+    const start = performance.now();
     await this.redis.set(namespacedKey, strValue, 'EX', expiration);
+    const duration = performance.now() - start;
+    this.logger('Storing result in redis', { requestId: '', duration: duration.toFixed(2), namespacedKey });
     return {
       key,
       bytes: Buffer.byteLength(strValue),
@@ -59,7 +68,10 @@ export class RedisCacheDriver implements CacheDriverInterface {
 
   public async remove(key: string): Promise<void> {
     const namespacedKey = this.getNamespacedKey(key);
+    const start = performance.now();
     await this.redis.del(namespacedKey);
+    const duration = performance.now() - start;
+    this.logger('Removing cached key from redis', { requestId: '', duration: duration.toFixed(2), namespacedKey });
   }
 
   public async keysStartingWith(prefix: string): Promise<string[]> {
@@ -76,7 +88,7 @@ export class RedisCacheDriver implements CacheDriverInterface {
 
       return keys;
     } catch (error) {
-      console.error('Error scanning keys with prefix:', prefix, error);
+      this.logger('Error scanning keys with prefix', { requestId: '', prefix, error });
       throw new Error('Failed to fetch keys from Redis');
     }
   }
@@ -87,10 +99,12 @@ export class RedisCacheDriver implements CacheDriverInterface {
 
   public async testConnection(): Promise<void> {
     try {
+      const start = performance.now();
       await this.redis.ping();
-      console.log('Redis connection successful!');
+      const duration = performance.now() - start;
+      this.logger('Redis ping successful', { requestId: '', duration: duration.toFixed(2), url: this.url });
     } catch (error) {
-      console.error('Redis connection failed:', error);
+      this.logger('Redis connection failed', { requestId: '', error });
       throw new Error('Failed to connect to Redis');
     }
   }

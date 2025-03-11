@@ -58,8 +58,15 @@ export const devLogger = (level) => (type, { error, warning, ...message }) => {
         'Performing query',
         'Performing query completed',
         'Streaming successfully completed',
+        'Connected to Redis successfully',
+        'Reconnecting to Redis...',
+        'Disconnected from Redis',
+        'Getting cached result from redis',
+        'Storing result in redis',
+        'Removing cached key from redis',
+        'Redis ping successful',
       ].includes(type)) {
-        logDetails();
+        logDetails(true);
         break;
       }
     }

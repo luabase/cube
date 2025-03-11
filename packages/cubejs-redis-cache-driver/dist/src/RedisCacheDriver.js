@@ -8,6 +8,7 @@ const shared_1 = require("@cubejs-backend/shared");
 const ioredis_1 = __importDefault(require("ioredis"));
 class RedisCacheDriver {
     redis;
+    url;
     namespace;
     logger;
     constructor(params) {
@@ -21,6 +22,7 @@ class RedisCacheDriver {
         }
         this.logger = params.logger;
         this.namespace = redisNamespace;
+        this.url = redisUrl;
         this.redis = new ioredis_1.default(redisUrl);
         this.redis.on('error', error => {
             this.logger('Redis connection error', { requestId: '', url: redisUrl, error });
@@ -37,13 +39,19 @@ class RedisCacheDriver {
     }
     async get(key) {
         const namespacedKey = this.getNamespacedKey(key);
+        const start = performance.now();
         const result = await this.redis.get(namespacedKey);
+        const duration = performance.now() - start;
+        this.logger('Getting cached result from redis', { requestId: '', duration: duration.toFixed(2), namespacedKey });
         return result ? JSON.parse(result) : null;
     }
     async set(key, value, expiration) {
         const namespacedKey = this.getNamespacedKey(key);
         const strValue = JSON.stringify(value);
+        const start = performance.now();
         await this.redis.set(namespacedKey, strValue, 'EX', expiration);
+        const duration = performance.now() - start;
+        this.logger('Storing result in redis', { requestId: '', duration: duration.toFixed(2), namespacedKey });
         return {
             key,
             bytes: Buffer.byteLength(strValue),
@@ -51,7 +59,10 @@ class RedisCacheDriver {
     }
     async remove(key) {
         const namespacedKey = this.getNamespacedKey(key);
+        const start = performance.now();
         await this.redis.del(namespacedKey);
+        const duration = performance.now() - start;
+        this.logger('Removing cached key from redis', { requestId: '', duration: duration.toFixed(2), namespacedKey });
     }
     async keysStartingWith(prefix) {
         const namespacedKey = this.getNamespacedKey(prefix);
@@ -66,7 +77,7 @@ class RedisCacheDriver {
             return keys;
         }
         catch (error) {
-            console.error('Error scanning keys with prefix:', prefix, error);
+            this.logger('Error scanning keys with prefix', { requestId: '', prefix, error });
             throw new Error('Failed to fetch keys from Redis');
         }
     }
@@ -75,11 +86,13 @@ class RedisCacheDriver {
     }
     async testConnection() {
         try {
+            const start = performance.now();
             await this.redis.ping();
-            console.log('Redis connection successful!');
+            const duration = performance.now() - start;
+            this.logger('Redis ping successful', { requestId: '', duration: duration.toFixed(2), url: this.url });
         }
         catch (error) {
-            console.error('Redis connection failed:', error);
+            this.logger('Redis connection failed', { requestId: '', error });
             throw new Error('Failed to connect to Redis');
         }
     }

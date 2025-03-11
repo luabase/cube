@@ -16,6 +16,7 @@ import { QueryStream } from './QueryStream';
  */
 function factoryQueueDriver(cacheAndQueueDriver, queueDriverOptions) {
   switch (cacheAndQueueDriver || 'memory') {
+    case 'redis':
     case 'memory':
       return new LocalQueueDriver(queueDriverOptions);
     case 'cubestore':

@@ -2,6 +2,7 @@ import { MaybeCancelablePromise } from '@cubejs-backend/shared';
 import { CacheDriverInterface } from '@cubejs-backend/base-driver';
 export declare class RedisCacheDriver implements CacheDriverInterface {
     private redis;
+    private url;
     private namespace;
     private logger;
     constructor(params: {

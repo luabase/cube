@@ -135,11 +135,11 @@ export class QueryCache {
     switch (options.cacheAndQueueDriver || 'memory') {
       case 'redis':
         this.cacheDriver = new RedisCacheDriver({ logger: this.logger });
-        this.logger('Using redis cache');
+        this.logger('Using redis cache', {});
         break;
       case 'memory':
         this.cacheDriver = new LocalCacheDriver();
-        this.logger('Using local memory cache');
+        this.logger('Using local memory cache', {});
         break;
       case 'cubestore':
         if (!options.cubeStoreDriverFactory) {
@@ -149,7 +149,7 @@ export class QueryCache {
         this.cacheDriver = new CubeStoreCacheDriver(
           options.cubeStoreDriverFactory
         );
-        this.logger('Using cube store cache');
+        this.logger('Using cube store cache', {});
         break;
       default:
         throw new Error(`Unknown cache driver: ${options.cacheAndQueueDriver}`);
