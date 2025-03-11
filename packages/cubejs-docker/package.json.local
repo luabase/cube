@@ -34,6 +34,7 @@
     "@cubejs-backend/postgres-driver": "file:/cube-build/packages/cubejs-postgres-driver",
     "@cubejs-backend/prestodb-driver": "file:/cube-build/packages/cubejs-prestodb-driver",
     "@cubejs-backend/questdb-driver": "file:/cube-build/packages/cubejs-questdb-driver",
+    "@cubejs-backend/redis-cache-driver": "file:/cube-build/packages/cubejs-redis-cache-driver",
     "@cubejs-backend/redshift-driver": "file:/cube-build/packages/cubejs-redshift-driver",
     "@cubejs-backend/server": "file:/cube-build/packages/cubejs-server",
     "@cubejs-backend/snowflake-driver": "file:/cube-build/packages/cubejs-snowflake-driver",
