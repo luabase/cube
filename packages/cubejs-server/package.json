@@ -41,6 +41,7 @@
   },
   "dependencies": {
     "@cubejs-backend/cubestore-driver": "1.2.21",
+    "@cubejs-backend/redis-cache-driver": "1.2.21",
     "@cubejs-backend/dotenv": "^9.0.2",
     "@cubejs-backend/native": "1.2.21",
     "@cubejs-backend/server-core": "1.2.21",
