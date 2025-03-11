@@ -2,7 +2,7 @@
   "name": "@cubejs-backend/redis-cache-driver",
   "description": "Cube Redis Cache driver",
   "author": "Alexander Kolov",
-  "version": "1.2.14",
+  "version": "1.2.21",
   "repository": {
     "type": "git",
     "url": "https://github.com/luabase/cube.git",
@@ -24,10 +24,10 @@
     "lint:fix": "eslint --fix src/* --ext .ts"
   },
   "dependencies": {
-    "@cubejs-backend/base-driver": "1.2.14",
-    "@cubejs-backend/schema-compiler": "1.2.14",
-    "@cubejs-backend/native": "1.2.14",
-    "@cubejs-backend/shared": "1.2.14",
+    "@cubejs-backend/base-driver": "1.2.21",
+    "@cubejs-backend/schema-compiler": "1.2.21",
+    "@cubejs-backend/native": "1.2.21",
+    "@cubejs-backend/shared": "1.2.21",
     "ioredis": "^5.4.1"
   },
   "license": "UNLICENSED",
