@@ -2,7 +2,7 @@
   "name": "@cubejs-backend/duckdb-server-driver",
   "description": "Cube DuckDB Server driver",
   "author": "Alexander Kolov",
-  "version": "1.2.14",
+  "version": "1.2.21",
   "repository": {
     "type": "git",
     "url": "https://github.com/luabase/cube.git",
@@ -24,9 +24,9 @@
     "lint:fix": "eslint --fix src/* --ext .ts"
   },
   "dependencies": {
-    "@cubejs-backend/base-driver": "1.1.17",
-    "@cubejs-backend/schema-compiler": "1.1.17",
-    "@cubejs-backend/shared": "1.1.17",
+    "@cubejs-backend/base-driver": "1.2.21",
+    "@cubejs-backend/schema-compiler": "1.2.21",
+    "@cubejs-backend/shared": "1.2.21",
     "agentkeepalive": "^4.5.0",
     "apache-arrow": "^19.0.0",
     "axios": "^1.7.7"
