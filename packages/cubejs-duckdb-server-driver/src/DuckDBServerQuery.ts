@@ -27,6 +27,18 @@ export class DuckDBServerQuery extends BaseQuery {
     return GRANULARITY_TO_INTERVAL[granularity](dimension);
   }
 
+  public timeStampCast(value: string) {
+    const noTimestampCast = process.env.CUBEJS_DEFINITE_NO_DUCKDB_SERVER_TIMESTAMP_CAST;
+    const timestampCastFunction = process.env.CUBEJS_DEFINITE_DUCKDB_SERVER_TIMESTAMP_CAST_FUNCTION;
+    if (noTimestampCast === 'true' || noTimestampCast === '1') {
+      return value;
+    } else if (timestampCastFunction) {
+      return `${value}::${timestampCastFunction}`;
+    } else {
+      return `${value}::timestamptz`;
+    }
+  }
+
   /**
    * Returns sql for source expression floored to timestamps aligned with
    * intervals relative to origin timestamp point.
@@ -53,7 +65,6 @@ export class DuckDBServerQuery extends BaseQuery {
     templates.functions.DATETRUNC = 'DATE_TRUNC({{ args_concat }})';
     templates.functions.LEAST = 'LEAST({{ args_concat }})';
     templates.functions.GREATEST = 'GREATEST({{ args_concat }})';
-    templates.filters.time_range_filter = '{{ column }}::timestamptz >= {{ from_timestamp }} AND {{ column }}::timestamptz <= {{ to_timestamp }}';
     return templates;
   }
 
