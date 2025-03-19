@@ -1,4 +1,4 @@
-import axios, { AxiosError, AxiosInstance } from 'axios';
+import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import {
   BaseDriver,
   DriverInterface,
@@ -94,6 +94,19 @@ export class DuckDBServerDriver extends BaseDriver implements DriverInterface {
     };
 
     this.client = axios.create({ baseURL: url });
+
+    this.client.interceptors.request.use(
+      (request: InternalAxiosRequestConfig): InternalAxiosRequestConfig => {
+        console.log('DuckDB Server query', {
+          method: request.method?.toUpperCase(),
+          url: `${request.baseURL}${request.url}`,
+          headers: JSON.stringify(request.headers, null, 2),
+          data: JSON.stringify(request.data, null, 2)
+        });
+        return request;
+      },
+      (error) => Promise.reject(error)
+    );
   }
 
   public readOnly() {
