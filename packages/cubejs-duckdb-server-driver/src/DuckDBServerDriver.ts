@@ -150,6 +150,8 @@ export class DuckDBServerDriver extends BaseDriver implements DriverInterface {
   }
 
   protected async fetchAsync(sql: string, args: unknown[], persist: boolean = false): Promise<Table> {
+    const start = performance.now();
+
     const data = {
       sql,
       args,
@@ -175,11 +177,17 @@ export class DuckDBServerDriver extends BaseDriver implements DriverInterface {
       } else {
         throw e;
       }
+    } finally {
+      const duration = performance.now() - start;
+      console.log(`[DuckDBServerDriver] Fetch finished in ${duration.toFixed(2)} ms`);
     }
   }
 
   public async query<R = unknown>(query: string, args: unknown[] = [], _options?: QueryOptions): Promise<R[]> {
+    const queryStart = performance.now();
     const result = await this.fetchAsync(query, args, false);
+
+    const transformStart = performance.now();
     const jsonResult = [];
     for (const row of result) {
       const jsonRow: Record<string, any> = {};
@@ -189,6 +197,10 @@ export class DuckDBServerDriver extends BaseDriver implements DriverInterface {
       jsonResult.push(jsonRow);
     }
 
+    const transformDuration = performance.now() - transformStart;
+    const queryDuration = performance.now() - queryStart;
+    console.log(`[DuckDBServerDriver] Transform finished in ${transformDuration.toFixed(2)} ms`);
+    console.log(`[DuckDBServerDriver] Query finished in ${queryDuration.toFixed(2)} ms`);
     return jsonResult as R[];
   }
 }
