@@ -3,6 +3,103 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [1.3.8](https://github.com/cube-js/cube/compare/v1.3.7...v1.3.8) (2025-04-24)
+
+**Note:** Version bump only for package @cubejs-backend/testing
+
+## [1.3.7](https://github.com/cube-js/cube/compare/v1.3.6...v1.3.7) (2025-04-23)
+
+**Note:** Version bump only for package @cubejs-backend/testing
+
+## [1.3.6](https://github.com/cube-js/cube/compare/v1.3.5...v1.3.6) (2025-04-22)
+
+**Note:** Version bump only for package @cubejs-backend/testing
+
+## [1.3.5](/compare/v1.3.4...v1.3.5) (2025-04-17)
+
+**Note:** Version bump only for package @cubejs-backend/testing
+
+## [1.3.4](https://github.com/cube-js/cube/compare/v1.3.3...v1.3.4) (2025-04-17)
+
+**Note:** Version bump only for package @cubejs-backend/testing
+
+## [1.3.3](https://github.com/cube-js/cube/compare/v1.3.2...v1.3.3) (2025-04-16)
+
+**Note:** Version bump only for package @cubejs-backend/testing
+
+## [1.3.2](https://github.com/cube-js/cube/compare/v1.3.1...v1.3.2) (2025-04-16)
+
+**Note:** Version bump only for package @cubejs-backend/testing
+
+## [1.3.1](https://github.com/cube-js/cube/compare/v1.3.0...v1.3.1) (2025-04-14)
+
+**Note:** Version bump only for package @cubejs-backend/testing
+
+# [1.3.0](https://github.com/cube-js/cube/compare/v1.2.33...v1.3.0) (2025-04-11)
+
+### Bug Fixes
+
+- **schema-compiler:** Fix cubes inheritance ([#9386](https://github.com/cube-js/cube/issues/9386)) ([409d74d](https://github.com/cube-js/cube/commit/409d74db8c5ac5a314e1e3e7b872586f538713d1))
+
+## [1.2.33](https://github.com/cube-js/cube/compare/v1.2.32...v1.2.33) (2025-04-10)
+
+**Note:** Version bump only for package @cubejs-backend/testing
+
+## [1.2.32](/compare/v1.2.31...v1.2.32) (2025-04-08)
+
+**Note:** Version bump only for package @cubejs-backend/testing
+
+## [1.2.31](https://github.com/cube-js/cube/compare/v1.2.30...v1.2.31) (2025-04-08)
+
+### Features
+
+- PatchMeasure member expression ([#9218](https://github.com/cube-js/cube/issues/9218)) ([128280a](https://github.com/cube-js/cube/commit/128280ae02d053b8435388ff2a808a27b773cef1))
+
+## [1.2.30](/compare/v1.2.29...v1.2.30) (2025-04-04)
+
+**Note:** Version bump only for package @cubejs-backend/testing
+
+## [1.2.29](https://github.com/cube-js/cube/compare/v1.2.28...v1.2.29) (2025-04-02)
+
+**Note:** Version bump only for package @cubejs-backend/testing
+
+## [1.2.28](https://github.com/cube-js/cube/compare/v1.2.27...v1.2.28) (2025-04-01)
+
+**Note:** Version bump only for package @cubejs-backend/testing
+
+## [1.2.27](https://github.com/cube-js/cube/compare/v1.2.26...v1.2.27) (2025-03-25)
+
+**Note:** Version bump only for package @cubejs-backend/testing
+
+## [1.2.26](https://github.com/cube-js/cube/compare/v1.2.25...v1.2.26) (2025-03-21)
+
+**Note:** Version bump only for package @cubejs-backend/testing
+
+## [1.2.25](https://github.com/cube-js/cube/compare/v1.2.24...v1.2.25) (2025-03-20)
+
+### Bug Fixes
+
+- **backend-native:** Fix result wrapper parsing ([#9361](https://github.com/cube-js/cube/issues/9361)) ([1b70644](https://github.com/cube-js/cube/commit/1b70644ef81e97864447d57e4b627f7f28d8be34))
+- **schema-compiler:** support unary operators in DAP filters ([#9366](https://github.com/cube-js/cube/issues/9366)) ([fff8af2](https://github.com/cube-js/cube/commit/fff8af2bfa25098e8ed20b4e4848f3926bba70b8))
+
+### Features
+
+- **duckdb-driver:** Fix numeric filter comparisons in DuckDB ([#9328](https://github.com/cube-js/cube/issues/9328)) ([969508d](https://github.com/cube-js/cube/commit/969508dd33984d0928f514ff07edbc50a0c949e3)), closes [#9281](https://github.com/cube-js/cube/issues/9281) [#9281](https://github.com/cube-js/cube/issues/9281)
+
+## [1.2.24](/compare/v1.2.23...v1.2.24) (2025-03-18)
+
+### Features
+
+- Implement disable_post_processing in /v1/sql (#9331) c336b10, closes #9331
+
+## [1.2.23](https://github.com/cube-js/cube/compare/v1.2.22...v1.2.23) (2025-03-17)
+
+**Note:** Version bump only for package @cubejs-backend/testing
+
+## [1.2.22](https://github.com/cube-js/cube/compare/v1.2.21...v1.2.22) (2025-03-14)
+
+**Note:** Version bump only for package @cubejs-backend/testing
+
 ## [1.2.21](https://github.com/cube-js/cube/compare/v1.2.20...v1.2.21) (2025-03-11)
 
 **Note:** Version bump only for package @cubejs-backend/testing

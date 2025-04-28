@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import csvWriter from 'csv-write-stream';
-import LRUCache from 'lru-cache';
+import { LRUCache } from 'lru-cache';
 import { pipeline } from 'stream';
 import { getEnv, MaybeCancelablePromise, streamToArray } from '@cubejs-backend/shared';
 import { CubeStoreCacheDriver, CubeStoreDriver } from '@cubejs-backend/cubestore-driver';
@@ -29,13 +29,11 @@ type QueryOptions = {
   incremental?: boolean;
 };
 
-export type QueryTuple = [
+export type QueryWithParams = [
   sql: string,
-  params: unknown[],
+  params: string[],
   options?: QueryOptions
 ];
-
-export type QueryWithParams = QueryTuple;
 
 export type Query = {
   requestId?: string;
@@ -85,7 +83,7 @@ export type PreAggTableToTempTable = [
 
 export type PreAggTableToTempTableNames = [string, { targetTableName: string; }];
 
-export type CacheKeyItem = string | string[] | QueryTuple | QueryTuple[] | undefined;
+export type CacheKeyItem = string | string[] | QueryWithParams | QueryWithParams[] | undefined;
 
 export type CacheKey =
   [CacheKeyItem, CacheKeyItem] |
@@ -217,9 +215,7 @@ export class QueryCache {
       .cacheKeyQueriesFrom(queryBody)
       .map(replacePreAggregationTableNames);
 
-    const renewalThreshold =
-      queryBody.cacheKeyQueries &&
-      queryBody.cacheKeyQueries.renewalThreshold;
+    const renewalThreshold = queryBody.cacheKeyQueries?.renewalThreshold;
 
     const expireSecs = this.getExpireSecs(queryBody);
 
@@ -361,7 +357,7 @@ export class QueryCache {
   }
 
   private cacheKeyQueriesFrom(queryBody: QueryBody): QueryWithParams[] {
-    return queryBody.cacheKeyQueries && queryBody.cacheKeyQueries.queries ||
+    return queryBody.cacheKeyQueries?.queries ||
       queryBody.cacheKeyQueries ||
       [];
   }
@@ -391,7 +387,7 @@ export class QueryCache {
   public static replacePreAggregationTableNames(
     queryAndParams: string | QueryWithParams,
     preAggregationsTablesToTempTables: PreAggTableToTempTableNames[],
-  ): string | QueryTuple {
+  ): string | QueryWithParams {
     const [keyQuery, params, queryOptions] = Array.isArray(queryAndParams)
       ? queryAndParams
       : [queryAndParams, []];
@@ -413,7 +409,7 @@ export class QueryCache {
    * queries and with the `stream.Writable` instance for the persistent.
    */
   public async queryWithRetryAndRelease(
-    query: string | QueryTuple,
+    query: string | QueryWithParams,
     values: string[],
     {
       cacheKey,
@@ -674,9 +670,9 @@ export class QueryCache {
   }
 
   public startRenewCycle(
-    query: string | QueryTuple,
+    query: string | QueryWithParams,
     values: string[],
-    cacheKeyQueries: (string | QueryTuple)[],
+    cacheKeyQueries: (string | QueryWithParams)[],
     expireSecs: number,
     cacheKey: CacheKey,
     renewalThreshold: any,
@@ -710,9 +706,9 @@ export class QueryCache {
   }
 
   public renewQuery(
-    query: string | QueryTuple,
+    query: string | QueryWithParams,
     values: string[],
-    cacheKeyQueries: (string | QueryTuple)[],
+    cacheKeyQueries: (string | QueryWithParams)[],
     expireSecs: number,
     cacheKey: CacheKey,
     renewalThreshold: any,
@@ -730,7 +726,7 @@ export class QueryCache {
   ) {
     options = options || { dataSource: 'default' };
     return Promise.all(
-      this.loadRefreshKeys(<QueryTuple[]>cacheKeyQueries, expireSecs, options),
+      this.loadRefreshKeys(<QueryWithParams[]>cacheKeyQueries, expireSecs, options),
     )
       .catch(e => {
         if (e instanceof ContinueWaitError) {
@@ -794,11 +790,11 @@ export class QueryCache {
     }
   ) {
     return cacheKeyQueries.map((q) => {
-      const [query, values, queryOptions]: QueryTuple = Array.isArray(q) ? q : [q, [], {}];
+      const [query, values, queryOptions]: QueryWithParams = Array.isArray(q) ? q : [q, [], {}];
       return this.cacheQueryResult(
         query,
-        <string[]>values,
-        [query, <string[]>values],
+        values,
+        [query, values],
         expireSecs,
         {
           renewalThreshold: this.options.refreshKeyRenewalThreshold || queryOptions?.renewalThreshold || 2 * 60,
@@ -820,7 +816,7 @@ export class QueryCache {
   ) => this.cacheDriver.withLock(`lock:${key}`, callback, ttl, true);
 
   public async cacheQueryResult(
-    query: string | QueryTuple,
+    query: string | QueryWithParams,
     values: string[],
     cacheKey: CacheKey,
     expiration: number,
@@ -879,7 +875,14 @@ export class QueryCache {
           });
       }).catch(e => {
         if (!(e instanceof ContinueWaitError)) {
-          this.logger('Dropping Cache', { cacheKey, error: e.stack || e, requestId: options.requestId, spanId, primaryQuery, renewCycle });
+          this.logger('Dropping Cache', {
+            cacheKey,
+            error: e.stack || e,
+            requestId: options.requestId,
+            spanId,
+            primaryQuery,
+            renewCycle
+          });
           this.cacheDriver.remove(redisKey)
             .catch(err => this.logger('Error removing key', {
               cacheKey,
@@ -916,7 +919,7 @@ export class QueryCache {
             inMemoryValue.renewalKey !== renewalKey
           ) || renewedAgo > expiration * 1000 || renewedAgo > inMemoryCacheDisablePeriod
         ) {
-          this.memoryCache.del(redisKey);
+          this.memoryCache.delete(redisKey);
         } else {
           this.logger('Found in memory cache entry', {
             cacheKey,
@@ -1002,7 +1005,7 @@ export class QueryCache {
     return null;
   }
 
-  public queryRedisKey(cacheKey): string {
+  public queryRedisKey(cacheKey: CacheKey): string {
     return this.getKey('SQL_QUERY_RESULT', getCacheHash(cacheKey) as any);
   }
 
