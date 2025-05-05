@@ -755,6 +755,7 @@ const baseSchema = {
   rewriteQueries: Joi.boolean().strict(),
   shown: Joi.boolean().strict(),
   public: Joi.boolean().strict(),
+  materialization: Joi.string().valid("view", "table", "incremental").allow(null),
   meta: Joi.any(),
   joins: Joi.object().pattern(identifierRegex, Joi.object().keys({
     sql: Joi.func().required(),
