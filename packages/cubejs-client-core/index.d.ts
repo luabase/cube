@@ -1032,6 +1032,7 @@ declare module '@cubejs-client/core' {
     isVisible?: boolean;
     public?: boolean;
     meta?: any;
+    materialization?: 'view' | 'table' | 'incremental' | null;
   };
 
 
