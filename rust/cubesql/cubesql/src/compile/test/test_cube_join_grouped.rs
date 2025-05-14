@@ -900,36 +900,33 @@ LIMIT 1
         .contains(r#"${MultiTypeCube.dim_str0} IS NOT DISTINCT FROM \"t0\".\"dim_str0\""#));
 }
 
+/// Filter on top of ungrouped-grouped join with complex condition should be rewritten as well
 #[tokio::test]
-async fn test_join_on_multiple_columns() {
+async fn test_join_ungrouped_grouped_with_filter_and_measure() {
+    if !Rewriter::sql_push_down_enabled() {
+        return;
+    }
     init_testing_logger();
 
     let query_plan = convert_select_to_query_plan(
         // language=PostgreSQL
         r#"
-SELECT
-    CAST(dim_str0 AS TEXT) || ' - ' || CAST(dim_str1 AS TEXT) AS "concat_dims"
-FROM MultiTypeCube
-INNER JOIN (
-    SELECT
-        CAST(dim_str0 AS TEXT) || ' - ' || CAST(dim_str1 AS TEXT) AS "concat_dims",
-        AVG(avgPrice) AS "avg_price"
-    FROM MultiTypeCube
-    GROUP BY
-        1
-    ORDER BY
-        2 DESC NULLS LAST,
-        1 ASC NULLS FIRST
-    LIMIT 10
-) "grouped"
-ON
-    CAST(MultiTypeCube.dim_str0 AS TEXT) || ' - ' || CAST(MultiTypeCube.dim_str1 AS TEXT)
-        =
-    "grouped"."concat_dims"
-GROUP BY
-    1
+SELECT "t0"."measure"
+FROM
+    MultiTypeCube
+    INNER JOIN (
+        SELECT
+            dim_str0,
+            AVG(avgPrice) AS "measure"
+        FROM
+            MultiTypeCube
+        GROUP BY 1
+    ) "t0"
+    ON (MultiTypeCube.dim_str0 IS NOT DISTINCT FROM "t0".dim_str0)
+WHERE ("t0"."measure" IS NULL)
+LIMIT 1
 ;
-            "#
+        "#
         .to_string(),
         DatabaseProtocol::PostgreSQL,
     )
@@ -946,7 +943,7 @@ GROUP BY
         .find_cube_scan_wrapped_sql()
         .request;
 
-    assert_eq!(request.ungrouped, None);
+    assert_eq!(request.ungrouped, Some(true));
 
     assert_eq!(request.subquery_joins.as_ref().unwrap().len(), 1);
 
@@ -956,23 +953,9 @@ GROUP BY
     assert_eq!(subquery.join_type, "INNER");
     assert!(subquery
         .on
-        .contains(r#"CAST(${MultiTypeCube.dim_str0} AS STRING)"#));
-    assert!(subquery
-        .on
-        .contains(r#"CAST(${MultiTypeCube.dim_str1} AS STRING)"#));
-    assert!(subquery.on.contains(r#" = \"grouped\".\"concat_dims\""#));
+        .contains(r#"${MultiTypeCube.dim_str0} IS NOT DISTINCT FROM \"t0\".\"dim_str0\""#));
 
-    // Dimension from ungrouped side
-    assert!(query_plan
-        .as_logical_plan()
-        .find_cube_scan_wrapped_sql()
-        .wrapped_sql
-        .sql
-        .contains(r#"CAST(${MultiTypeCube.dim_str0} AS STRING)"#));
-    assert!(query_plan
-        .as_logical_plan()
-        .find_cube_scan_wrapped_sql()
-        .wrapped_sql
-        .sql
-        .contains(r#"CAST(${MultiTypeCube.dim_str1} AS STRING)"#));
+    // Outer filter
+    assert_eq!(request.segments.as_ref().unwrap().len(), 1);
+    assert!(request.segments.as_ref().unwrap()[0].contains(r#"\"t0\".\"measure\" IS NULL"#));
 }
