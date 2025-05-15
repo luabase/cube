@@ -194,6 +194,27 @@ describe('Yaml Schema Testing', () => {
     });
   });
 
+  describe('ddl', () => {
+    it('can be defined', async () => {
+      const { compiler } = prepareYamlCompiler(`
+        cubes:
+          - name: Products
+            sqlTable: bronze.orders
+            materialization: table
+            ddl: |-
+              CREATE OR REPLACE TABLE bronze.orders AS (
+                SELECT *
+                FROM stripe.orders
+              )
+            dimensions:
+              - name: Title
+                sql: name
+                type: string
+        `)
+      await compiler.compile();
+    })
+  });
+
   describe('Escaping and quoting', () => {
     it('escapes backticks', async () => {
       const { compiler } = prepareYamlCompiler(
