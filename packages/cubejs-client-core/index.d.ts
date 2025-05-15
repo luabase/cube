@@ -1033,6 +1033,7 @@ declare module '@cubejs-client/core' {
     public?: boolean;
     meta?: any;
     materialization?: 'view' | 'table' | 'incremental' | null;
+    ddl?: string;
   };
 
 

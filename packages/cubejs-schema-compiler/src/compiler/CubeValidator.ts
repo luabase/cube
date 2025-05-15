@@ -767,6 +767,7 @@ const baseSchema = {
   shown: Joi.boolean().strict(),
   public: Joi.boolean().strict(),
   materialization: Joi.string().valid("view", "table", "incremental").allow(null),
+  ddl: Joi.string(),
   meta: Joi.any(),
   joins: Joi.object().pattern(identifierRegex, Joi.object().keys({
     sql: Joi.func().required(),
