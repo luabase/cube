@@ -43,6 +43,7 @@ Object {
   "folders": Array [],
   "hierarchies": Array [],
   "isVisible": true,
+  "materialization": undefined,
   "measures": Array [
     Object {
       "aggType": "number",
@@ -122,6 +123,7 @@ Object {
   "folders": Array [],
   "hierarchies": Array [],
   "isVisible": true,
+  "materialization": undefined,
   "measures": Array [
     Object {
       "aggType": "number",
@@ -235,6 +237,7 @@ Object {
   "folders": Array [],
   "hierarchies": Array [],
   "isVisible": true,
+  "materialization": undefined,
   "measures": Array [
     Object {
       "aggType": "number",
@@ -314,6 +317,7 @@ Object {
   "folders": Array [],
   "hierarchies": Array [],
   "isVisible": true,
+  "materialization": undefined,
   "measures": Array [
     Object {
       "aggType": "number",

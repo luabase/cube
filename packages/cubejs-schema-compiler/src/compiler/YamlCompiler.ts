@@ -190,7 +190,14 @@ export class YamlCompiler {
       return t.booleanLiteral(obj);
     } else if (typeof obj === 'number') {
       return t.numericLiteral(obj);
-    } else if (obj === null && (propertyPath.includes('meta') || propertyPath.includes('materialization'))) {
+    } else if (
+      obj === null
+      && (
+        propertyPath.includes('meta')
+        || propertyPath.includes('materialization')
+        || propertyPath.includes('config')
+      )
+    ) {
       return t.nullLiteral();
     }
 
