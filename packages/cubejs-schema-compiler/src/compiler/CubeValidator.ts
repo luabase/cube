@@ -766,8 +766,11 @@ const baseSchema = {
   rewriteQueries: Joi.boolean().strict(),
   shown: Joi.boolean().strict(),
   public: Joi.boolean().strict(),
+  // TODO: Deprecate and remove, please use public
   materialization: Joi.string().valid("view", "table", "incremental").allow(null),
+  // TODO: Deprecate and remove, please use public
   ddl: Joi.string(),
+  config: Joi.any(),
   meta: Joi.any(),
   joins: Joi.object().pattern(identifierRegex, Joi.object().keys({
     sql: Joi.func().required(),
