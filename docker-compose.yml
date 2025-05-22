@@ -1,10 +1,9 @@
 services:
   cube:
+    image: cubejs:latest
     build:
       context: .
       dockerfile: packages/cubejs-docker/definite.Dockerfile
-      tags:
-        -  cubejs:latest
     ports:
       # It's better to use random port binding for 4000/3000 ports
       # without it you will not able to start multiple projects inside docker
