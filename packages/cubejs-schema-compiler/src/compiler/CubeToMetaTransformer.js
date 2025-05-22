@@ -50,10 +50,6 @@ export class CubeToMetaTransformer {
         title: cubeTitle,
         isVisible: isCubeVisible,
         public: isCubeVisible,
-        /** @deprecated */
-        materialization: cube.materialization,
-        /** @deprecated */
-        ddl: cube.ddl,
         description: cube.description,
         connectedComponent: this.joinGraph.connectedComponents()[cube.name],
         config: cube.config,

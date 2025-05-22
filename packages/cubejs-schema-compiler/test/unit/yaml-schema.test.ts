@@ -154,67 +154,6 @@ describe('Yaml Schema Testing', () => {
     }
   });
 
-  describe('Materializations', () => {
-    const template = (materialization: string) => {
-      return `
-      cubes:
-        - name: Products
-          sql: "select * from tbl"
-          materialization: ${materialization}
-          dimensions:
-            - name: Title
-              sql: name
-              type: string
-        `
-    }
-    it('can be table', async () => {
-      const { compiler } = prepareYamlCompiler(template('table'));
-      await compiler.compile();
-    });
-    it('can be view', async () => {
-      const { compiler } = prepareYamlCompiler(template('view'));
-      await compiler.compile();
-    });
-    it('can be incremental', async () => {
-      const { compiler } = prepareYamlCompiler(template('incremental'));
-      await compiler.compile();
-    });
-    it('can be null', async () => {
-      const { compiler } = prepareYamlCompiler(template('null'));
-      await compiler.compile();
-    });
-    it('cannot be anything else', async () => {
-      const { compiler } = prepareYamlCompiler(template('foo'));
-      try {
-        await compiler.compile();
-        throw new Error("`foo` should not be allowed as a materialization value");
-      } catch (e: any) {
-        expect(e.message).toContain('must be one of [view, table, incremental, null]');
-      }
-    });
-  });
-
-  describe('ddl', () => {
-    it('can be defined', async () => {
-      const { compiler } = prepareYamlCompiler(`
-        cubes:
-          - name: Products
-            sqlTable: bronze.orders
-            materialization: table
-            ddl: |-
-              CREATE OR REPLACE TABLE bronze.orders AS (
-                SELECT *
-                FROM stripe.orders
-              )
-            dimensions:
-              - name: Title
-                sql: name
-                type: string
-        `)
-      await compiler.compile();
-    })
-  });
-
   describe('Escaping and quoting', () => {
     it('escapes backticks', async () => {
       const { compiler } = prepareYamlCompiler(
